@@ -5,7 +5,7 @@ edition = "2021"
 description = "High-performance multi-chain deposit detector using public RPC endpoints"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/maxylev/rustplorer"
-keywords = ["blockchain", "ethereum", "solana", "bitcoin", "evm", "deposit"]
+keywords = ["blockchain", "ethereum", "solana", "bitcoin", "evm"]
 categories = ["command-line-utilities", "cryptography::cryptocurrencies"]
 readme = "README.md"
 
