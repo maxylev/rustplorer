@@ -16,11 +16,11 @@
 ## Features
 
 - **Multi-chain**: Ethereum, Base, Polygon, BSC, Arbitrum, and any EVM chain + Solana + **Bitcoin**
-- **Multi-token**: Native tokens (ETH, MATIC, SOL) and ERC-20 / SPL tokens
+- **Multi-token**: Native tokens (ETH, MATIC, SOL, BTC) + ERC-20 / SPL tokens
 - **No API keys**: Works with any public JSON-RPC endpoint
 - **Multi-RPC failover**: Automatically retries on the next endpoint if one fails or rate-limits
 - **1M+ addresses**: Loads addresses into an in-memory `HashSet` for O(1) matching
-- **Human-readable output**: Converts raw hex/lamport values to decimal strings
+- **Human-readable output**: Converts raw hex/lamport/satoshi values to decimal strings
 - **Dual use**: CLI binary and Rust library crate
 - **Extensible**: Modular architecture with EVM, Solana, Bitcoin scanners — add any chain by implementing a scanner
 - **Optional block range**: Omit `start_block`/`end_block` to auto-detect from the node
@@ -102,7 +102,7 @@ cargo install --path .
 
 ```toml
 [dependencies]
-rustplorer = "0.1"
+rustplorer = "0.3"
 ```
 
 ## Quick Start
@@ -128,7 +128,7 @@ rpc = ["https://mainnet.base.org"]
 start_block = 12000000
 end_block = 12000500
 
-# Omit both start_block and end_block → scans last 1,000 blocks (EVM) / 500 slots (Solana)
+# Omit both start_block and end_block → scans last 1,000 blocks (EVM) / 500 slots (Solana) / 6 blocks (Bitcoin)
 [[chains]]
 caip2 = "eip155:137"
 rpc = ["https://polygon-rpc.com"]
@@ -144,6 +144,10 @@ caip2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 rpc = ["https://api.mainnet-beta.solana.com"]
 start_block = 250000000
 end_block = 250000100
+
+[[chains]]
+caip2 = "bip122:000000000019d6689c085ae165831e93"
+rpc = ["http://user:password@localhost:8332"]
 
 [assets.ETH_NATIVE]
 network = "eip155:1"
@@ -169,16 +173,22 @@ decimals = 9
 network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 contract = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 decimals = 6
+
+[assets.BTC_NATIVE]
+network = "bip122:000000000019d6689c085ae165831e93"
+contract = "native"
+decimals = 8
 ```
 
 ### 2. Create an addresses file (`addresses.txt`)
 
-One address per line — supports mixed EVM and Solana:
+One address per line — supports mixed EVM, Solana, and Bitcoin:
 
 ```
 0x71C7656EC7ab88b098defB751B7401B5f6d8976F
 0x8Ba1f109551bD432803012645Ac136ddd64DBA72
 AMYmXa54xZuS7rjeSX7E4YwNVKpNbhFHK9gP7jLCN3A
+bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq
 ```
 
 ### 3. Run
@@ -345,6 +355,15 @@ Options:
     "amount_raw": "2500000000",
     "amount_clean": "2.5",
     "block_number": 263
+  },
+  {
+    "chain": "bip122:000000000019d6689c085ae165831e93",
+    "token": "Native",
+    "from_address": "bc1qsenderaddress0987654321",
+    "to_address": "bc1qtargetaddress1234567890",
+    "amount_raw": "150000000",
+    "amount_clean": "1.5",
+    "block_number": 830000
   }
 ]
 ```
@@ -356,6 +375,7 @@ chain,token,from_address,to_address,amount_raw,amount_clean,block_number
 eip155:8453,USDC_BASE,0x20f3a60a...,0x71c7656e...,0x...02faf080,50,12000542
 eip155:1,Native,0xd8da6bf2...,0x01bf3a00...,0x0de0b6b3a7640000,1,19000210
 solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp,Native,E45GKD1q...,3zCGKxMK...,2500000000,2.5,263
+bip122:000000000019d6689c085ae165831e93,Native,bc1qsender...,bc1qtarget...,150000000,1.5,830000
 ```
 
 ## Programmatic Usage
@@ -461,6 +481,7 @@ Default lookback when `start_block` is not set:
 **Public RPC limits to be aware of:**
 - `eth_getLogs`: 500-2,000 blocks per request (rustplorer chunks at 200)
 - `getBlock` (Solana): ~100 requests per 10 seconds
+- `getblock` (Bitcoin): requires verbosity 3 support (Bitcoin Core v24.0.0+)
 - Rate limits: typically 5-10 req/sec on free endpoints
 
 ### Daemon Mode (Watch)
@@ -512,7 +533,7 @@ The E2E tests perform real transfers on local chains:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `caip2` | string | yes | CAIP-2 chain ID (e.g. `eip155:1`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) |
+| `caip2` | string | yes | CAIP-2 chain ID (e.g. `eip155:1`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `bip122:000000000019d6689c085ae165831e93`) |
 | `rpc` | string[] | yes | One or more public RPC URLs |
 | `start_block` | uint64 | no | First block/slot (defaults to `end_block - lookback`) |
 | `end_block` | uint64 | no | Last block/slot (defaults to node tip) |
@@ -523,17 +544,18 @@ The E2E tests perform real transfers on local chains:
 |---|---|---|---|
 | `network` | string | yes | Must match a chain's `caip2` |
 | `contract` | string | yes | Token contract address, or `"native"` for the gas token |
-| `decimals` | uint32 | yes | Token decimal places (ETH=18, SOL=9, USDC=6) |
+| `decimals` | uint32 | yes | Token decimal places (ETH=18, SOL=9, BTC=8, USDC=6) |
 
 ## Performance Notes
 
-Public RPC nodes typically allow 5-10 requests/second. With 200-block chunks:
+Public RPC nodes typically allow 5-10 requests/second.
 
-| Chain | Blocks | RPC Calls (ERC20) | RPC Calls (Native) | Est. Time |
-|---|---|---|---|---|
-| Ethereum | 500 | ~3 | 500 | ~2 min |
-| Base | 500 | ~3 | 500 | ~2 min |
-| Solana | 100 slots | 100 | — | ~30 sec |
+| Chain | Blocks | RPC Calls | Est. Time |
+|---|---|---|---|
+| Ethereum (ERC-20) | 500 | ~3 (chunked 200) | ~5 sec |
+| Ethereum (Native) | 500 | 500 (1 per block) | ~2 min |
+| Solana | 100 slots | 100 (1 per slot) | ~30 sec |
+| Bitcoin | 6 blocks | 12 (2 per block) | ~1 sec |
 
 For production workloads at scale, consider dedicated/archive RPC nodes, self-hosted Reth/Erigon nodes, or indexing services.
 
