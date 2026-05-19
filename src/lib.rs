@@ -11,6 +11,9 @@ use tokio::sync::Mutex;
 
 pub use format::format_to_human;
 
+pub const DEFAULT_EVM_LOOKBACK: u64 = 1_000;
+pub const DEFAULT_SOLANA_LOOKBACK: u64 = 500;
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChainConfig {
     pub caip2: String,
@@ -108,6 +111,14 @@ pub fn load_addresses(
     Ok(set)
 }
 
+fn default_lookback(caip2: &str) -> u64 {
+    if caip2.starts_with("solana:") {
+        DEFAULT_SOLANA_LOOKBACK
+    } else {
+        DEFAULT_EVM_LOOKBACK
+    }
+}
+
 pub async fn run_indexer(
     chains: Vec<ChainConfig>,
     assets: HashMap<String, AssetConfig>,
@@ -129,6 +140,7 @@ pub async fn run_indexer(
         let client_clone = client.clone();
         let rpc_clone = chain.rpc.clone();
         let caip2 = chain.caip2.clone();
+        let lookback = default_lookback(&caip2);
 
         let task = tokio::spawn(async move {
             let is_evm = caip2.starts_with("eip155:");
@@ -148,15 +160,15 @@ pub async fn run_indexer(
                 None
             };
 
-            let start_block = chain
-                .start_block
-                .or(current_tip)
-                .or(chain.end_block)
-                .unwrap_or(0);
+            let tip = current_tip.unwrap_or(0);
 
-            let end_block = chain
-                .end_block
-                .unwrap_or(current_tip.unwrap_or(start_block));
+            let end_block = chain.end_block.unwrap_or(tip);
+
+            let start_block = match (chain.start_block, chain.end_block) {
+                (Some(s), _) => s,
+                (None, Some(_)) => end_block.saturating_sub(lookback),
+                (None, None) => tip.saturating_sub(lookback),
+            };
 
             if start_block > end_block {
                 eprintln!(
