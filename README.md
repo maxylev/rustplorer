@@ -28,7 +28,7 @@
 - **Hot-reloading**: Address file is re-read each interval — edit, add, or remove addresses at runtime
 - **HTTP API**: Manage target addresses via REST endpoints (`--api-port`)
 - **CLI address management**: Add or remove addresses directly from the command line
-- **Docker & GHCR**: Pre-built image available at `ghcr.io/maxylev/rustplorer:latest`
+- **Docker & GHCR**: Pre-built image available at `ghcr.io/maxylev/rustplorer:latest` — or build locally with `docker build -t rustplorer .`
 
 ## Architecture
 
@@ -61,6 +61,28 @@ docker run -d --name rustplorer \
   ghcr.io/maxylev/rustplorer:latest \
   -c /app/Config.toml -a /app/addresses.txt --watch --interval 30 --api-port 3000
 ```
+
+### Build Docker locally
+
+```bash
+# Build the image (~3 min on first build, cached after)
+docker build -t rustplorer .
+
+# Single run
+docker run --rm \
+  -v $(pwd)/Config.toml:/app/Config.toml \
+  -v $(pwd)/addresses.txt:/app/addresses.txt \
+  rustplorer -c /app/Config.toml -a /app/addresses.txt
+
+# Daemon mode with API
+docker run -d --name rustplorer \
+  -v $(pwd)/Config.toml:/app/Config.toml \
+  -v $(pwd)/addresses.txt:/app/addresses.txt \
+  -p 3000:3000 \
+  rustplorer -c /app/Config.toml -a /app/addresses.txt --watch --interval 30 --api-port 3000
+```
+
+> **Note:** A `.dockerignore` excludes `target/` from the build context. The image uses a multi-stage build (Rust 1.85-slim → Debian Bookworm) and weighs ~30 MB compressed.
 
 ### From crates.io
 
