@@ -8,7 +8,7 @@ const SOLANA_RPC: &str = "http://localhost:8899";
 
 const FROM: &str = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 const TO: &str = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-const TOKEN_ADDR: &str = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+const TOKEN_ADDR_DEFAULT: &str = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 const SOL_RECEIVER: &str = "3zCGKxMK3JHNUMtHbticPoDvoRbUgzY65ayoHMWZwZE2";
 
@@ -92,6 +92,9 @@ async fn e2e_evm_erc20_deposit() {
         return;
     }
 
+    let token_addr = std::env::var("ANVIL_TOKEN_ADDR")
+        .unwrap_or_else(|_| TOKEN_ADDR_DEFAULT.to_string());
+
     let chains = vec![ChainConfig {
         caip2: "eip155:31337".to_string(),
         rpc: vec![ANVIL_RPC.to_string()],
@@ -104,7 +107,7 @@ async fn e2e_evm_erc20_deposit() {
         "MTK".to_string(),
         AssetConfig {
             network: "eip155:31337".to_string(),
-            contract: TOKEN_ADDR.to_lowercase().to_string(),
+            contract: token_addr.to_lowercase(),
             decimals: 6,
         },
     );
