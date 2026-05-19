@@ -92,8 +92,8 @@ async fn e2e_evm_erc20_deposit() {
         return;
     }
 
-    let token_addr = std::env::var("ANVIL_TOKEN_ADDR")
-        .unwrap_or_else(|_| TOKEN_ADDR_DEFAULT.to_string());
+    let token_addr =
+        std::env::var("ANVIL_TOKEN_ADDR").unwrap_or_else(|_| TOKEN_ADDR_DEFAULT.to_string());
 
     let chains = vec![ChainConfig {
         caip2: "eip155:31337".to_string(),
