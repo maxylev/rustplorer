@@ -1,7 +1,7 @@
 <h1 align="center">rustplorer</h1>
 
 <p align="center">
-  <strong>High-performance multi-chain deposit detector for EVM and Solana blockchains.</strong><br>
+  <strong>High-performance multi-chain deposit detector for EVM, Solana, and Bitcoin blockchains.</strong><br>
   Monitors up to 1 million addresses using <strong>only public RPC endpoints</strong> — no API keys, no third-party services.
 </p>
 
@@ -15,14 +15,14 @@
 
 ## Features
 
-- **Multi-chain**: Ethereum, Base, Polygon, BSC, Arbitrum, and any EVM chain + Solana
+- **Multi-chain**: Ethereum, Base, Polygon, BSC, Arbitrum, and any EVM chain + Solana + **Bitcoin**
 - **Multi-token**: Native tokens (ETH, MATIC, SOL) and ERC-20 / SPL tokens
 - **No API keys**: Works with any public JSON-RPC endpoint
 - **Multi-RPC failover**: Automatically retries on the next endpoint if one fails or rate-limits
 - **1M+ addresses**: Loads addresses into an in-memory `HashSet` for O(1) matching
 - **Human-readable output**: Converts raw hex/lamport values to decimal strings
 - **Dual use**: CLI binary and Rust library crate
-- **Extensible**: Modular architecture — add Bitcoin, Monero, or any chain by implementing a scanner
+- **Extensible**: Modular architecture with EVM, Solana, Bitcoin scanners — add any chain by implementing a scanner
 - **Optional block range**: Omit `start_block`/`end_block` to auto-detect from the node
 - **Daemon mode**: Run continuously with configurable polling interval (`--watch`)
 - **Hot-reloading**: Address file is re-read each interval — edit, add, or remove addresses at runtime
@@ -425,6 +425,12 @@ Block ranges are chunked into 200-block intervals to respect public RPC limits.
 
 Each slot is fetched individually via `getBlock`.
 
+### Bitcoin (BTC)
+
+| Token Type | Method | Strategy |
+|---|---|---|
+| Native BTC | `getblock` (verbosity 3) | Uses Bitcoin Core v24.0+ `prevout` field inside `vin` to determine sender in a single RPC call. Matches `vout.scriptPubKey.address` against local targets. Values are safely converted from float to Satoshi integers using `rust_decimal`. |
+
 ### Multi-RPC Failover
 
 If an RPC endpoint returns a 429, 5xx, or a JSON-RPC error, rustplorer automatically tries the next endpoint in your `rpc` array. All endpoints are exhausted before failing.
@@ -435,6 +441,7 @@ When `start_block` or `end_block` is omitted in the config:
 
 - **EVM**: Calls `eth_blockNumber` to get the latest block
 - **Solana**: Calls `getSlot` to get the latest slot
+- **Bitcoin**: Calls `getblockcount` to get the latest block
 
 Default lookback when `start_block` is not set:
 
@@ -442,6 +449,7 @@ Default lookback when `start_block` is not set:
 |---|---|---|
 | EVM (Ethereum, Base, etc.) | 1,000 blocks | ~20 min (ETH), ~3 min (Polygon), ~16 min (Base) |
 | Solana | 500 slots | ~3-4 min |
+| Bitcoin | 6 blocks | ~1 hour |
 
 | `start_block` | `end_block` | Behavior |
 |---|---|---|
@@ -476,12 +484,13 @@ This guarantees contiguous coverage — no missed blocks and no overlapping scan
 cargo test
 ```
 
-### E2E tests (requires anvil + solana-test-validator)
+### E2E tests (requires anvil + solana-test-validator + bitcoind)
 
 ```bash
 # Start local chains
 anvil --host 127.0.0.1 --port 8545 --silent &
 solana-test-validator --reset --quiet --rpc-port 8899 &
+bitcoind -regtest -txindex -rpcuser=user -rpcpassword=password -rpcport=18443 -fallbackfee=0.0001 &
 
 # Run E2E tests
 cargo test --test e2e_test -- --ignored --nocapture
@@ -495,6 +504,7 @@ The E2E tests perform real transfers on local chains:
 | `e2e_evm_erc20_deposit` | Anvil (31337) | ERC-20 MockToken | 50 MTK transfer detected |
 | `e2e_evm_auto_end_block` | Anvil (31337) | Native ETH | Auto end_block resolution |
 | `e2e_solana_native_deposit` | Solana (testnet) | Native SOL | 2.5 SOL transfer detected |
+| `e2e_btc_native_deposit` | Bitcoin (regtest) | Native BTC | 1.5 BTC transfer detected |
 
 ## Configuration Reference
 

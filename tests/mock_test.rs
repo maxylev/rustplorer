@@ -373,3 +373,104 @@ fn test_format_human_readable() {
     assert_eq!(format_to_human("42", 0), "42");
     assert_eq!(format_to_human("1000000", 6), "1");
 }
+
+fn make_btc_config(rpc_url: &str) -> (Vec<ChainConfig>, HashMap<String, AssetConfig>) {
+    let chains = vec![ChainConfig {
+        caip2: "bip122:000000000019d6689c085ae165831e93".to_string(),
+        rpc: vec![rpc_url.to_string()],
+        start_block: Some(830000),
+        end_block: Some(830000),
+    }];
+
+    let mut assets = HashMap::new();
+    assets.insert(
+        "BTC".to_string(),
+        AssetConfig {
+            network: "bip122:000000000019d6689c085ae165831e93".to_string(),
+            contract: "native".to_string(),
+            decimals: 8,
+        },
+    );
+
+    (chains, assets)
+}
+
+#[tokio::test]
+async fn test_btc_native_deposit_detection() {
+    let mut server = mockito::Server::new_async().await;
+
+    let mock_hash = server
+        .mock("POST", "/")
+        .match_body(mockito::Matcher::Regex("getblockhash".to_string()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"jsonrpc":"1.0","id":"rustplorer","result":"00000000000000000001abc"}"#)
+        .create_async()
+        .await;
+
+    let target_addr = "bc1qtargetaddress1234567890";
+    let sender_addr = "bc1qsenderaddress0987654321";
+    let mock_block = server
+        .mock("POST", "/")
+        .match_body(mockito::Matcher::Regex("getblock".to_string()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "jsonrpc": "1.0",
+                "id": "rustplorer",
+                "result": {
+                    "tx": [
+                        {
+                            "vin": [{
+                                "prevout": {
+                                    "scriptPubKey": {
+                                        "address": sender_addr
+                                    }
+                                }
+                            }],
+                            "vout": [{
+                                "value": 1.50000000,
+                                "scriptPubKey": {
+                                    "address": target_addr
+                                }
+                            }]
+                        }
+                    ]
+                }
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+
+    let url = server.url();
+    let (chains, assets) = make_btc_config(&url);
+
+    let mut targets = HashSet::new();
+    targets.insert(target_addr.to_string());
+
+    let results = run_indexer(chains, assets, Arc::new(targets))
+        .await
+        .unwrap()
+        .deposits;
+
+    mock_hash.assert_async().await;
+    mock_block.assert_async().await;
+
+    assert_eq!(results.len(), 1);
+    let deposit = &results[0];
+
+    assert_eq!(
+        deposit.chain,
+        "bip122:000000000019d6689c085ae165831e93"
+    );
+    assert_eq!(deposit.token, "Native");
+    assert_eq!(deposit.to_address, target_addr);
+    assert_eq!(deposit.from_address, sender_addr);
+
+    assert_eq!(deposit.amount_raw, "150000000");
+
+    assert_eq!(deposit.amount_clean, "1.5");
+    assert_eq!(deposit.block_number, 830000);
+}

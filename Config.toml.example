@@ -65,3 +65,14 @@ decimals = 9
 network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 contract = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 decimals = 6
+
+[[chains]]
+caip2 = "bip122:000000000019d6689c085ae165831e93"
+rpc = [
+    "http://user:password@localhost:8332",
+]
+
+[assets.BTC_NATIVE]
+network = "bip122:000000000019d6689c085ae165831e93"
+contract = "native"
+decimals = 8

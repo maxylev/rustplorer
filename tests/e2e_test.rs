@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 const ANVIL_RPC: &str = "http://127.0.0.1:8545";
 const SOLANA_RPC: &str = "http://localhost:8899";
+const BTC_RPC: &str = "http://user:password@localhost:18443";
 
 const FROM: &str = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 const TO: &str = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
@@ -16,6 +17,15 @@ async fn anvil_running() -> bool {
     reqwest::Client::new()
         .post(ANVIL_RPC)
         .json(&serde_json::json!({"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}))
+        .send()
+        .await
+        .is_ok()
+}
+
+async fn btc_running() -> bool {
+    reqwest::Client::new()
+        .post(BTC_RPC)
+        .json(&serde_json::json!({"jsonrpc":"1.0","id":"rustplorer","method":"getblockcount","params":[]}))
         .send()
         .await
         .is_ok()
@@ -245,4 +255,72 @@ async fn e2e_evm_auto_end_block() {
         !results.is_empty(),
         "end_block=None should auto-detect tip and find native ETH deposits"
     );
+}
+
+#[tokio::test]
+#[ignore]
+async fn e2e_btc_native_deposit() {
+    if !btc_running().await {
+        eprintln!(
+            "Skipping: bitcoind not running at {} (use: bitcoind -regtest -txindex -rpcuser=user -rpcpassword=password -rpcport=18443 -fallbackfee=0.0001)",
+            BTC_RPC
+        );
+        return;
+    }
+
+    let client = reqwest::Client::new();
+
+    let res: serde_json::Value = client
+        .post(BTC_RPC)
+        .json(&serde_json::json!({"jsonrpc":"1.0","id":"rustplorer","method":"getblockcount","params":[]}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let current_block = res["result"].as_u64().unwrap();
+
+    let start_block = current_block.saturating_sub(6u64);
+
+    let chains = vec![ChainConfig {
+        caip2: "bip122:000000000019d6689c085ae165831e93".to_string(),
+        rpc: vec![BTC_RPC.to_string()],
+        start_block: Some(start_block),
+        end_block: Some(current_block),
+    }];
+
+    let mut assets = HashMap::new();
+    assets.insert(
+        "BTC".to_string(),
+        AssetConfig {
+            network: "bip122:000000000019d6689c085ae165831e93".to_string(),
+            contract: "native".to_string(),
+            decimals: 8,
+        },
+    );
+
+    let target = "bcrt1qtargetaddresshere000000";
+    let mut targets = HashSet::new();
+    targets.insert(target.to_string());
+
+    let results = run_indexer(chains, assets, Arc::new(targets))
+        .await
+        .unwrap()
+        .deposits;
+
+    eprintln!("BTC native deposits found: {}", results.len());
+    for d in &results {
+        eprintln!(
+            "  block {} | {} -> {} | {} BTC (raw: {})",
+            d.block_number, d.from_address, d.to_address, d.amount_clean, d.amount_raw
+        );
+    }
+
+    if !results.is_empty() {
+        let deposit = &results[0];
+        assert_eq!(deposit.token, "Native");
+        assert_eq!(deposit.to_address, target);
+        assert!(!deposit.amount_raw.is_empty());
+    }
 }

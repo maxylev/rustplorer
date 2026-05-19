@@ -1,11 +1,11 @@
 [package]
 name = "rustplorer"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 description = "High-performance multi-chain deposit detector using public RPC endpoints"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/maxylev/rustplorer"
-keywords = ["blockchain", "ethereum", "solana", "evm", "deposit"]
+keywords = ["blockchain", "ethereum", "solana", "bitcoin", "evm", "deposit"]
 categories = ["command-line-utilities", "cryptography::cryptocurrencies"]
 readme = "README.md"
 
@@ -29,6 +29,7 @@ clap = { version = "4", features = ["derive"] }
 csv = "1"
 hex = "0.4"
 axum = "0.7"
+rust_decimal = "1.33"
 
 [dev-dependencies]
 mockito = "1"

@@ -1,3 +1,4 @@
+pub mod btc;
 pub mod evm;
 pub mod format;
 pub mod rpc;
@@ -13,6 +14,7 @@ pub use format::format_to_human;
 
 pub const DEFAULT_EVM_LOOKBACK: u64 = 1_000;
 pub const DEFAULT_SOLANA_LOOKBACK: u64 = 500;
+pub const DEFAULT_BTC_LOOKBACK: u64 = 6;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChainConfig {
@@ -90,6 +92,20 @@ pub async fn fetch_solana_slot(
     Ok(res["result"].as_u64().unwrap_or(0))
 }
 
+pub async fn fetch_btc_block_number(
+    client: &reqwest::Client,
+    rpc_urls: &[String],
+) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
+    let payload = serde_json::json!({
+        "jsonrpc": "1.0",
+        "id": "rustplorer",
+        "method": "getblockcount",
+        "params": []
+    });
+    let res = rpc::execute_rpc(client, rpc_urls, &payload).await?;
+    Ok(res["result"].as_u64().unwrap_or(0))
+}
+
 pub fn load_config(
     path: &std::path::Path,
 ) -> Result<AppConfig, Box<dyn std::error::Error + Send + Sync>> {
@@ -120,6 +136,8 @@ pub fn load_addresses(
 fn default_lookback(caip2: &str) -> u64 {
     if caip2.starts_with("solana:") {
         DEFAULT_SOLANA_LOOKBACK
+    } else if caip2.starts_with("bip122:") {
+        DEFAULT_BTC_LOOKBACK
     } else {
         DEFAULT_EVM_LOOKBACK
     }
@@ -153,6 +171,7 @@ pub async fn run_indexer(
         let task = tokio::spawn(async move {
             let is_evm = caip2.starts_with("eip155:");
             let is_solana = caip2.starts_with("solana:");
+            let is_btc = caip2.starts_with("bip122:");
 
             let needs_tip = chain.start_block.is_none() || chain.end_block.is_none();
 
@@ -161,6 +180,8 @@ pub async fn run_indexer(
                     fetch_evm_block_number(&client_clone, &rpc_clone).await.ok()
                 } else if is_solana {
                     fetch_solana_slot(&client_clone, &rpc_clone).await.ok()
+                } else if is_btc {
+                    fetch_btc_block_number(&client_clone, &rpc_clone).await.ok()
                 } else {
                     None
                 }
@@ -210,6 +231,21 @@ pub async fn run_indexer(
                     .await;
             } else if is_solana {
                 let scanner = solana::SolanaScanner {
+                    rpc_urls: rpc_clone,
+                    caip2,
+                    assets: assets_map,
+                };
+                let _ = scanner
+                    .scan(
+                        client_clone,
+                        start_block,
+                        end_block,
+                        targets_clone,
+                        results_clone,
+                    )
+                    .await;
+            } else if is_btc {
+                let scanner = btc::BtcScanner {
                     rpc_urls: rpc_clone,
                     caip2,
                     assets: assets_map,
