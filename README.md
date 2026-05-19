@@ -36,6 +36,12 @@ Instead of querying "does address X have a deposit?" (pull), rustplorer download
 
 ## Installation
 
+### From crates.io
+
+```bash
+cargo install rustplorer
+```
+
 ### From source
 
 ```bash

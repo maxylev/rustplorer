@@ -119,9 +119,8 @@ fn apply_overrides(config: &mut AppConfig, args: &CliArgs) {
         }
     }
 
-    if args.network.is_some() {
-        let target_net = args.network.as_ref().unwrap().clone();
-        config.chains.retain(|c| c.caip2 == target_net);
+    if let Some(target_net) = &args.network {
+        config.chains.retain(|c| c.caip2 == *target_net);
     }
 }
 
