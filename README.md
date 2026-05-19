@@ -80,10 +80,16 @@ rpc = ["https://mainnet.base.org"]
 start_block = 12000000
 end_block = 12000500
 
-# Omit start_block and end_block to scan the latest block only
+# Omit both start_block and end_block → scans last 1,000 blocks (EVM) / 500 slots (Solana)
 [[chains]]
 caip2 = "eip155:137"
 rpc = ["https://polygon-rpc.com"]
+
+# Omit only end_block → scans from start_block to the node's latest block
+[[chains]]
+caip2 = "eip155:8453"
+rpc = ["https://mainnet.base.org"]
+start_block = 12000000
 
 [[chains]]
 caip2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
@@ -286,7 +292,24 @@ When `start_block` or `end_block` is omitted in the config:
 - **EVM**: Calls `eth_blockNumber` to get the latest block
 - **Solana**: Calls `getSlot` to get the latest slot
 
-If both are omitted, only the current tip block/slot is scanned. If only `end_block` is omitted, it scans from `start_block` to the current tip.
+Default lookback when `start_block` is not set:
+
+| Chain type | Default lookback | Time coverage (approx.) |
+|---|---|---|
+| EVM (Ethereum, Base, etc.) | 1,000 blocks | ~20 min (ETH), ~3 min (Polygon), ~16 min (Base) |
+| Solana | 500 slots | ~3-4 min |
+
+| `start_block` | `end_block` | Behavior |
+|---|---|---|
+| set | set | Scan `start_block` → `end_block` |
+| set | omitted | Scan `start_block` → node tip |
+| omitted | set | Scan `(end_block - lookback)` → `end_block` |
+| omitted | omitted | Scan `(node tip - lookback)` → `node tip` |
+
+**Public RPC limits to be aware of:**
+- `eth_getLogs`: 500-2,000 blocks per request (rustplorer chunks at 200)
+- `getBlock` (Solana): ~100 requests per 10 seconds
+- Rate limits: typically 5-10 req/sec on free endpoints
 
 ## Testing
 
@@ -324,7 +347,7 @@ The E2E tests perform real transfers on local chains:
 |---|---|---|---|
 | `caip2` | string | yes | CAIP-2 chain ID (e.g. `eip155:1`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) |
 | `rpc` | string[] | yes | One or more public RPC URLs |
-| `start_block` | uint64 | no | First block/slot (defaults to node tip) |
+| `start_block` | uint64 | no | First block/slot (defaults to `end_block - lookback`) |
 | `end_block` | uint64 | no | Last block/slot (defaults to node tip) |
 
 ### Asset (`[assets.NAME]`)
