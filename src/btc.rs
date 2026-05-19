@@ -51,7 +51,8 @@ impl BtcScanner {
 
             if let Some(transactions) = block_res["result"]["tx"].as_array() {
                 for tx in transactions {
-                    self.process_transaction(tx, block_num, &targets, &results).await;
+                    self.process_transaction(tx, block_num, &targets, &results)
+                        .await;
                 }
             }
 

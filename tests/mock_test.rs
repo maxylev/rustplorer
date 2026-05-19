@@ -461,10 +461,7 @@ async fn test_btc_native_deposit_detection() {
     assert_eq!(results.len(), 1);
     let deposit = &results[0];
 
-    assert_eq!(
-        deposit.chain,
-        "bip122:000000000019d6689c085ae165831e93"
-    );
+    assert_eq!(deposit.chain, "bip122:000000000019d6689c085ae165831e93");
     assert_eq!(deposit.token, "Native");
     assert_eq!(deposit.to_address, target_addr);
     assert_eq!(deposit.from_address, sender_addr);
