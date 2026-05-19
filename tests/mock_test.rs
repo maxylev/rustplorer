@@ -57,7 +57,7 @@ async fn test_evm_erc20_deposit_detection() {
     let (chains, assets) = make_evm_config(&url);
     let targets = Arc::new(make_target_address());
 
-    let results = run_indexer(chains, assets, targets).await.unwrap();
+    let results = run_indexer(chains, assets, targets).await.unwrap().deposits;
 
     mock.assert_async().await;
     assert_eq!(results.len(), 1);
@@ -102,7 +102,7 @@ async fn test_evm_native_deposit_detection() {
     let (chains, assets) = make_evm_config(&url);
     let targets = Arc::new(make_target_address());
 
-    let results = run_indexer(chains, assets, targets).await.unwrap();
+    let results = run_indexer(chains, assets, targets).await.unwrap().deposits;
 
     mock_logs.assert_async().await;
     mock_block.assert_async().await;
@@ -133,7 +133,7 @@ async fn test_evm_no_match() {
     let (chains, assets) = make_evm_config(&url);
     let targets = Arc::new(make_target_address());
 
-    let results = run_indexer(chains, assets, targets).await.unwrap();
+    let results = run_indexer(chains, assets, targets).await.unwrap().deposits;
     assert!(results.is_empty());
 }
 
@@ -177,7 +177,7 @@ async fn test_rpc_fallback_on_error() {
     );
 
     let targets = Arc::new(make_target_address());
-    let results = run_indexer(chains, assets, targets).await.unwrap();
+    let results = run_indexer(chains, assets, targets).await.unwrap().deposits;
 
     bad_mock.assert_async().await;
     good_mock.assert_async().await;
@@ -225,7 +225,7 @@ async fn test_rpc_fallback_on_json_error() {
     );
 
     let targets = Arc::new(make_target_address());
-    let results = run_indexer(chains, assets, targets).await.unwrap();
+    let results = run_indexer(chains, assets, targets).await.unwrap().deposits;
 
     assert!(results.is_empty());
 }
@@ -293,7 +293,8 @@ async fn test_solana_native_deposit_detection() {
 
     let results = run_indexer(chains, assets, Arc::new(targets))
         .await
-        .unwrap();
+        .unwrap()
+        .deposits;
 
     mock.assert_async().await;
     assert_eq!(results.len(), 1);

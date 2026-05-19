@@ -24,6 +24,11 @@
 - **Dual use**: CLI binary and Rust library crate
 - **Extensible**: Modular architecture — add Bitcoin, Monero, or any chain by implementing a scanner
 - **Optional block range**: Omit `start_block`/`end_block` to auto-detect from the node
+- **Daemon mode**: Run continuously with configurable polling interval (`--watch`)
+- **Hot-reloading**: Address file is re-read each interval — edit, add, or remove addresses at runtime
+- **HTTP API**: Manage target addresses via REST endpoints (`--api-port`)
+- **CLI address management**: Add or remove addresses directly from the command line
+- **Docker & GHCR**: Pre-built image available at `ghcr.io/maxylev/rustplorer:latest`
 
 ## Architecture
 
@@ -35,6 +40,27 @@ Blockchain RPC ──► Block Stream ──► Local HashSet Lookup ──► D
 Instead of querying "does address X have a deposit?" (pull), rustplorer downloads blocks and asks "does this block contain any of my addresses?" (push). All filtering happens locally.
 
 ## Installation
+
+### From Docker (GHCR)
+
+```bash
+docker pull ghcr.io/maxylev/rustplorer:latest
+
+# Single run
+docker run --rm \
+  -v $(pwd)/Config.toml:/app/Config.toml \
+  -v $(pwd)/addresses.txt:/app/addresses.txt \
+  ghcr.io/maxylev/rustplorer:latest \
+  -c /app/Config.toml -a /app/addresses.txt
+
+# Daemon mode with API
+docker run -d --name rustplorer \
+  -v $(pwd)/Config.toml:/app/Config.toml \
+  -v $(pwd)/addresses.txt:/app/addresses.txt \
+  -p 3000:3000 \
+  ghcr.io/maxylev/rustplorer:latest \
+  -c /app/Config.toml -a /app/addresses.txt --watch --interval 30 --api-port 3000
+```
 
 ### From crates.io
 
@@ -155,6 +181,74 @@ rustplorer -a addresses.txt --network eip155:1 --rpc "https://rpc.ankr.com/eth,h
 rustplorer -a addresses.txt --verbose -o results.json
 ```
 
+## Daemon Mode (Watch)
+
+Run rustplorer continuously with `--watch`. It polls chains at a configurable interval, starting each scan where the last one left off (no missed blocks, no overlaps).
+
+```bash
+# Poll every 30 seconds
+rustplorer -a addresses.txt --watch --interval 30
+
+# Poll every minute, output to JSON Lines file
+rustplorer -a addresses.txt --watch --interval 60 -o deposits.jsonl
+
+# Daemon + HTTP API for remote address management
+rustplorer -a addresses.txt --watch --interval 30 --api-port 3000
+```
+
+**Hot-reloading**: The addresses file is re-read at the start of every polling cycle. Add, remove, or edit addresses in the file and changes take effect automatically — no restart required.
+
+**Output format**: In watch mode, results are appended rather than overwritten:
+- **JSON** → JSON Lines (`.jsonl`), one object per line
+- **CSV** → Standard CSV with headers on first write
+
+## HTTP API
+
+Start an HTTP server to manage target addresses dynamically:
+
+```bash
+rustplorer -a addresses.txt --api-port 3000
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/addresses` | List all tracked addresses |
+| `POST` | `/addresses` | Add a new address |
+| `DELETE` | `/addresses` | Remove an address |
+
+### Examples
+
+```bash
+# List addresses
+curl http://localhost:3000/addresses
+
+# Add an address
+curl -X POST http://localhost:3000/addresses \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"}'
+
+# Remove an address
+curl -X DELETE http://localhost:3000/addresses \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"}'
+```
+
+## CLI Address Management
+
+Directly add or remove addresses from the command line:
+
+```bash
+# Add an address
+rustplorer -a addresses.txt --add-address "0xNewAddress123..."
+
+# Remove an address
+rustplorer -a addresses.txt --remove-address "0xOldAddress456..."
+```
+
+These commands operate on the file directly and exit immediately. Changes take effect on the next watch cycle.
+
 ## CLI Reference
 
 ```
@@ -170,6 +264,11 @@ Options:
       --end-block <N>        Override end block (node default if omitted)
       --rpc <URLS>           Override RPC endpoints (comma-separated)
       --verbose              Show progress output
+      --watch                Run continuously in daemon mode
+      --interval <SECS>      Polling interval in seconds (watch mode) [default: 60]
+      --api-port <PORT>      Start HTTP API on port for dynamic address management
+      --add-address <ADDR>   Add address to file and exit
+      --remove-address <ADDR> Remove address from file and exit
   -h, --help                 Show help
   -V, --version              Show version
 ```
@@ -222,7 +321,7 @@ solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp,Native,E45GKD1q...,3zCGKxMK...,250000000
 ## Programmatic Usage
 
 ```rust
-use rustplorer::{run_indexer, ChainConfig, AssetConfig, DepositResult};
+use rustplorer::{run_indexer, ChainConfig, AssetConfig, DepositResult, IndexerResult};
 use hashbrown::HashSet;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -246,7 +345,7 @@ async fn main() {
         decimals: 18,
     });
 
-    let deposits: Vec<DepositResult> = run_indexer(
+    let result: IndexerResult = run_indexer(
         chains,
         assets,
         Arc::new(targets),
@@ -254,9 +353,14 @@ async fn main() {
     .await
     .unwrap();
 
-    for d in &deposits {
+    for d in &result.deposits {
         println!("{} {} {} -> {} ({})",
             d.token, d.amount_clean, d.from_address, d.to_address, d.chain);
+    }
+
+    // Track last scanned blocks for daemon implementations
+    for (chain, block) in &result.latest_blocks {
+        println!("[{}] last scanned block: {}", chain, block);
     }
 }
 ```
@@ -310,6 +414,19 @@ Default lookback when `start_block` is not set:
 - `eth_getLogs`: 500-2,000 blocks per request (rustplorer chunks at 200)
 - `getBlock` (Solana): ~100 requests per 10 seconds
 - Rate limits: typically 5-10 req/sec on free endpoints
+
+### Daemon Mode (Watch)
+
+In daemon mode (`--watch`), rustplorer:
+
+1. Runs a full scan cycle
+2. Records the highest block scanned per chain
+3. Sleeps for `--interval` seconds
+4. Re-reads the addresses file from disk (hot-reload)
+5. Starts the next scan at `last_block + 1` for each chain
+6. Repeats
+
+This guarantees contiguous coverage — no missed blocks and no overlapping scans.
 
 ## Testing
 

@@ -63,7 +63,7 @@ async fn test_solana_local_validator_connectivity() {
     );
 
     let targets = Arc::new(HashSet::new());
-    let results = run_indexer(chains, assets, targets).await.unwrap();
+    let results = run_indexer(chains, assets, targets).await.unwrap().deposits;
     assert!(results.is_empty(), "No targets loaded, should find nothing");
 }
 
@@ -118,7 +118,8 @@ async fn test_solana_local_validator_detect_airdrop() {
 
     let results = run_indexer(chains, assets, Arc::new(targets))
         .await
-        .unwrap();
+        .unwrap()
+        .deposits;
 
     eprintln!(
         "Found {} deposits for system program address",

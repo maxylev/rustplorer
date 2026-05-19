@@ -61,7 +61,8 @@ async fn e2e_evm_native_eth_deposit() {
 
     let results = run_indexer(chains, assets, Arc::new(targets))
         .await
-        .unwrap();
+        .unwrap()
+        .deposits;
 
     eprintln!("EVM native deposits found: {}", results.len());
     for d in &results {
@@ -113,7 +114,8 @@ async fn e2e_evm_erc20_deposit() {
 
     let results = run_indexer(chains, assets, Arc::new(targets))
         .await
-        .unwrap();
+        .unwrap()
+        .deposits;
 
     eprintln!("EVM ERC20 deposits found: {}", results.len());
     for d in &results {
@@ -180,7 +182,8 @@ async fn e2e_solana_native_deposit() {
 
     let results = run_indexer(chains, assets, Arc::new(targets))
         .await
-        .unwrap();
+        .unwrap()
+        .deposits;
 
     eprintln!("Solana native deposits found: {}", results.len());
     for d in &results {
@@ -231,7 +234,8 @@ async fn e2e_evm_auto_end_block() {
 
     let results = run_indexer(chains, assets, Arc::new(targets))
         .await
-        .unwrap();
+        .unwrap()
+        .deposits;
 
     eprintln!("Auto end_block: found {} deposits", results.len());
     assert!(

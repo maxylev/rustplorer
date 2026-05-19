@@ -28,6 +28,7 @@ hashbrown = "0.15"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 hex = "0.4"
+axum = "0.7"
 
 [dev-dependencies]
 mockito = "1"

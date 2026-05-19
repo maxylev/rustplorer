@@ -46,6 +46,12 @@ pub struct DepositResult {
     pub block_number: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct IndexerResult {
+    pub deposits: Vec<DepositResult>,
+    pub latest_blocks: HashMap<String, u64>,
+}
+
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
     Json,
@@ -123,8 +129,9 @@ pub async fn run_indexer(
     chains: Vec<ChainConfig>,
     assets: HashMap<String, AssetConfig>,
     targets: Arc<HashSet<String>>,
-) -> Result<Vec<DepositResult>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<IndexerResult, Box<dyn std::error::Error + Send + Sync>> {
     let detected_deposits: Arc<Mutex<Vec<DepositResult>>> = Arc::new(Mutex::new(Vec::new()));
+    let latest_blocks: Arc<Mutex<HashMap<String, u64>>> = Arc::new(Mutex::new(HashMap::new()));
     let client = reqwest::Client::new();
     let shared_assets = Arc::new(assets);
     let mut tasks = vec![];
@@ -136,6 +143,7 @@ pub async fn run_indexer(
 
         let targets_clone = Arc::clone(&targets);
         let results_clone = Arc::clone(&detected_deposits);
+        let blocks_clone = Arc::clone(&latest_blocks);
         let assets_map = Arc::clone(&shared_assets);
         let client_clone = client.clone();
         let rpc_clone = chain.rpc.clone();
@@ -169,6 +177,8 @@ pub async fn run_indexer(
                 (None, Some(_)) => end_block.saturating_sub(lookback),
                 (None, None) => tip.saturating_sub(lookback),
             };
+
+            blocks_clone.lock().await.insert(caip2.clone(), end_block);
 
             if start_block > end_block {
                 eprintln!(
@@ -222,6 +232,10 @@ pub async fn run_indexer(
 
     futures::future::join_all(tasks).await;
 
-    let final_data = detected_deposits.lock().await.clone();
-    Ok(final_data)
+    let deposits = detected_deposits.lock().await.clone();
+    let final_blocks = latest_blocks.lock().await.clone();
+    Ok(IndexerResult {
+        deposits,
+        latest_blocks: final_blocks,
+    })
 }
