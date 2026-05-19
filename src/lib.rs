@@ -1,0 +1,215 @@
+pub mod evm;
+pub mod format;
+pub mod rpc;
+pub mod solana;
+
+use hashbrown::HashSet;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+pub use format::format_to_human;
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ChainConfig {
+    pub caip2: String,
+    pub rpc: Vec<String>,
+    pub start_block: Option<u64>,
+    pub end_block: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AssetConfig {
+    pub network: String,
+    pub contract: String,
+    pub decimals: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AppConfig {
+    pub chains: Vec<ChainConfig>,
+    pub assets: HashMap<String, AssetConfig>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct DepositResult {
+    pub chain: String,
+    pub token: String,
+    pub from_address: String,
+    pub to_address: String,
+    pub amount_raw: String,
+    pub amount_clean: String,
+    pub block_number: u64,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Format {
+    Json,
+    Csv,
+}
+
+pub async fn fetch_evm_block_number(
+    client: &reqwest::Client,
+    rpc_urls: &[String],
+) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
+    let payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "eth_blockNumber",
+        "params": []
+    });
+    let res = rpc::execute_rpc(client, rpc_urls, &payload).await?;
+    let hex = res["result"]
+        .as_str()
+        .unwrap_or("0x0")
+        .trim_start_matches("0x");
+    Ok(u64::from_str_radix(hex, 16).unwrap_or(0))
+}
+
+pub async fn fetch_solana_slot(
+    client: &reqwest::Client,
+    rpc_urls: &[String],
+) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
+    let payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getSlot",
+        "params": []
+    });
+    let res = rpc::execute_rpc(client, rpc_urls, &payload).await?;
+    Ok(res["result"].as_u64().unwrap_or(0))
+}
+
+pub fn load_config(
+    path: &std::path::Path,
+) -> Result<AppConfig, Box<dyn std::error::Error + Send + Sync>> {
+    let config_str = std::fs::read_to_string(path)?;
+    let config: AppConfig = toml::from_str(&config_str)?;
+    Ok(config)
+}
+
+pub fn load_addresses(
+    path: &std::path::Path,
+) -> Result<HashSet<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let file = std::fs::File::open(path)?;
+    let mut set = HashSet::with_capacity(1_000_000);
+    use std::io::{BufRead, BufReader};
+    for line in BufReader::new(file).lines() {
+        let addr = line?.trim().to_string();
+        if !addr.is_empty() {
+            if addr.starts_with("0x") || addr.starts_with("0X") {
+                set.insert(addr.to_lowercase());
+            } else {
+                set.insert(addr);
+            }
+        }
+    }
+    Ok(set)
+}
+
+pub async fn run_indexer(
+    chains: Vec<ChainConfig>,
+    assets: HashMap<String, AssetConfig>,
+    targets: Arc<HashSet<String>>,
+) -> Result<Vec<DepositResult>, Box<dyn std::error::Error + Send + Sync>> {
+    let detected_deposits: Arc<Mutex<Vec<DepositResult>>> = Arc::new(Mutex::new(Vec::new()));
+    let client = reqwest::Client::new();
+    let shared_assets = Arc::new(assets);
+    let mut tasks = vec![];
+
+    for chain in chains {
+        if chain.rpc.is_empty() {
+            continue;
+        }
+
+        let targets_clone = Arc::clone(&targets);
+        let results_clone = Arc::clone(&detected_deposits);
+        let assets_map = Arc::clone(&shared_assets);
+        let client_clone = client.clone();
+        let rpc_clone = chain.rpc.clone();
+        let caip2 = chain.caip2.clone();
+
+        let task = tokio::spawn(async move {
+            let is_evm = caip2.starts_with("eip155:");
+            let is_solana = caip2.starts_with("solana:");
+
+            let needs_tip = chain.start_block.is_none() || chain.end_block.is_none();
+
+            let current_tip = if needs_tip {
+                if is_evm {
+                    fetch_evm_block_number(&client_clone, &rpc_clone).await.ok()
+                } else if is_solana {
+                    fetch_solana_slot(&client_clone, &rpc_clone).await.ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let start_block = chain
+                .start_block
+                .or(current_tip)
+                .or(chain.end_block)
+                .unwrap_or(0);
+
+            let end_block = chain
+                .end_block
+                .unwrap_or(current_tip.unwrap_or(start_block));
+
+            if start_block > end_block {
+                eprintln!(
+                    "[rustplorer] [{}] start_block ({}) > end_block ({}), skipping",
+                    caip2, start_block, end_block
+                );
+                return;
+            }
+
+            eprintln!(
+                "[rustplorer] [{}] scanning blocks {} → {}",
+                caip2, start_block, end_block
+            );
+
+            if is_evm {
+                let scanner = evm::EvmScanner {
+                    rpc_urls: rpc_clone,
+                    caip2,
+                    assets: assets_map,
+                };
+                let _ = scanner
+                    .scan(
+                        client_clone,
+                        start_block,
+                        end_block,
+                        targets_clone,
+                        results_clone,
+                    )
+                    .await;
+            } else if is_solana {
+                let scanner = solana::SolanaScanner {
+                    rpc_urls: rpc_clone,
+                    caip2,
+                    assets: assets_map,
+                };
+                let _ = scanner
+                    .scan(
+                        client_clone,
+                        start_block,
+                        end_block,
+                        targets_clone,
+                        results_clone,
+                    )
+                    .await;
+            } else {
+                eprintln!("[rustplorer] Unsupported network: {}", caip2);
+            }
+        });
+        tasks.push(task);
+    }
+
+    futures::future::join_all(tasks).await;
+
+    let final_data = detected_deposits.lock().await.clone();
+    Ok(final_data)
+}

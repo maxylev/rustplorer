@@ -1,0 +1,67 @@
+[[chains]]
+caip2 = "eip155:1"
+rpc = [
+    "https://eth.llamarpc.com",
+    "https://rpc.ankr.com/eth",
+    "https://cloudflare-eth.com",
+]
+start_block = 19000000
+end_block = 19000500
+
+[[chains]]
+caip2 = "eip155:8453"
+rpc = [
+    "https://mainnet.base.org",
+    "https://base.llamarpc.com",
+]
+start_block = 12000000
+end_block = 12000500
+
+[[chains]]
+caip2 = "eip155:137"
+rpc = [
+    "https://polygon-rpc.com",
+    "https://rpc.ankr.com/polygon",
+]
+end_block = 55000500
+
+[[chains]]
+caip2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+rpc = [
+    "https://api.mainnet-beta.solana.com",
+]
+
+[assets.ETH_NATIVE]
+network = "eip155:1"
+contract = "native"
+decimals = 18
+
+[assets.USDC_ETH]
+network = "eip155:1"
+contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+decimals = 6
+
+[assets.USDC_BASE]
+network = "eip155:8453"
+contract = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+decimals = 6
+
+[assets.MATIC_NATIVE]
+network = "eip155:137"
+contract = "native"
+decimals = 18
+
+[assets.USDC_POLY]
+network = "eip155:137"
+contract = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+decimals = 6
+
+[assets.SOL_NATIVE]
+network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+contract = "native"
+decimals = 9
+
+[assets.USDC_SOL]
+network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+contract = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+decimals = 6

@@ -1,0 +1,12 @@
+/target
+**/*.rs.bk
+Cargo.lock
+*.swp
+*.swo
+.DS_Store
+Config.toml
+addresses.txt
+test-ledger/
+config/
+.idea/
+.vscode/
