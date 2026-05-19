@@ -246,27 +246,45 @@ rustplorer -a addresses.txt --api-port 3000
 # List addresses
 curl http://localhost:3000/addresses
 
-# Add an address
+# Add a single address
 curl -X POST http://localhost:3000/addresses \
   -H "Content-Type: application/json" \
   -d '{"address": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"}'
 
-# Remove an address
+# Add multiple addresses as array
+curl -X POST http://localhost:3000/addresses \
+  -H "Content-Type: application/json" \
+  -d '{"addresses": ["0xAAA...", "0xBBB...", "SolanaAddr..."]}'
+
+# Remove a single address
 curl -X DELETE http://localhost:3000/addresses \
   -H "Content-Type: application/json" \
   -d '{"address": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"}'
+
+# Remove multiple addresses as array
+curl -X DELETE http://localhost:3000/addresses \
+  -H "Content-Type: application/json" \
+  -d '{"addresses": ["0xAAA...", "0xBBB..."]}'
 ```
 
 ## CLI Address Management
 
-Directly add or remove addresses from the command line:
+Directly add or remove addresses from the command line. Flags can be repeated for batches:
 
 ```bash
-# Add an address
+# Add one address
 rustplorer -a addresses.txt --add-address "0xNewAddress123..."
 
-# Remove an address
-rustplorer -a addresses.txt --remove-address "0xOldAddress456..."
+# Add many at once (repeatable)
+rustplorer -a addresses.txt \
+  --add-address "0xAAA..." \
+  --add-address "0xBBB..." \
+  --add-address "SolanaAddr..."
+
+# Remove many at once
+rustplorer -a addresses.txt \
+  --remove-address "0xAAA..." \
+  --remove-address "SolanaAddr..."
 ```
 
 These commands operate on the file directly and exit immediately. Changes take effect on the next watch cycle.
@@ -289,8 +307,8 @@ Options:
       --watch                Run continuously in daemon mode
       --interval <SECS>      Polling interval in seconds (watch mode) [default: 60]
       --api-port <PORT>      Start HTTP API on port for dynamic address management
-      --add-address <ADDR>   Add address to file and exit
-      --remove-address <ADDR> Remove address from file and exit
+      --add-address <ADDR>   Add address(es) to file and exit (repeatable)
+      --remove-address <ADDR> Remove address(es) from file and exit (repeatable)
   -h, --help                 Show help
   -V, --version              Show version
 ```

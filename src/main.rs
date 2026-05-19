@@ -54,11 +54,11 @@ struct CliArgs {
     #[arg(long, help = "Start HTTP API on port for dynamic address management")]
     api_port: Option<u16>,
 
-    #[arg(long, help = "Add address to file and exit")]
-    add_address: Option<String>,
+    #[arg(long, help = "Add address(es) to file and exit (repeatable)")]
+    add_address: Option<Vec<String>>,
 
-    #[arg(long, help = "Remove address from file and exit")]
-    remove_address: Option<String>,
+    #[arg(long, help = "Remove address(es) from file and exit (repeatable)")]
+    remove_address: Option<Vec<String>>,
 }
 
 #[derive(Clone)]
@@ -68,21 +68,41 @@ struct ApiState {
 
 #[derive(Deserialize, Serialize)]
 struct AddressPayload {
-    address: String,
+    #[serde(default)]
+    address: Option<String>,
+    #[serde(default)]
+    addresses: Option<Vec<String>>,
+}
+
+impl AddressPayload {
+    fn into_addrs(self) -> Vec<String> {
+        let mut out = Vec::new();
+        if let Some(a) = self.address {
+            out.push(a);
+        }
+        if let Some(list) = self.addresses {
+            out.extend(list);
+        }
+        out
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args = CliArgs::parse();
 
-    if let Some(ref addr) = args.add_address {
-        manage_address_file(&args.addresses, addr, true)?;
-        println!("Added {} to {:?}", addr, args.addresses);
+    if let Some(ref addrs) = args.add_address {
+        manage_addresses(&args.addresses, addrs, true)?;
+        println!("Added {} address(es) to {:?}", addrs.len(), args.addresses);
         return Ok(());
     }
-    if let Some(ref addr) = args.remove_address {
-        manage_address_file(&args.addresses, addr, false)?;
-        println!("Removed {} from {:?}", addr, args.addresses);
+    if let Some(ref addrs) = args.remove_address {
+        manage_addresses(&args.addresses, addrs, false)?;
+        println!(
+            "Removed {} address(es) from {:?}",
+            addrs.len(),
+            args.addresses
+        );
         return Ok(());
     }
 
@@ -296,7 +316,7 @@ fn append_output(
     Ok(())
 }
 
-fn manage_address_file(path: &PathBuf, address: &str, add: bool) -> io::Result<()> {
+fn manage_addresses(path: &PathBuf, addresses: &[String], add: bool) -> io::Result<()> {
     let mut contents = String::new();
     if path.exists() {
         let mut file = File::open(path)?;
@@ -308,14 +328,18 @@ fn manage_address_file(path: &PathBuf, address: &str, add: bool) -> io::Result<(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    let addr_lower = address.to_lowercase();
 
     if add {
-        if !lines.iter().any(|l| l.to_lowercase() == addr_lower) {
-            lines.push(address.to_string());
+        let existing: Vec<String> = lines.iter().map(|l| l.to_lowercase()).collect();
+        for addr in addresses.iter().rev() {
+            let lower = addr.to_lowercase();
+            if !existing.contains(&lower) {
+                lines.push(addr.clone());
+            }
         }
     } else {
-        lines.retain(|l| l.to_lowercase() != addr_lower);
+        let to_remove: Vec<String> = addresses.iter().map(|a| a.to_lowercase()).collect();
+        lines.retain(|l| !to_remove.contains(&l.to_lowercase()));
     }
 
     let mut file = File::create(path)?;
@@ -335,17 +359,21 @@ async fn api_list_addresses(
 async fn api_add_address(
     axum::extract::State(state): axum::extract::State<ApiState>,
     axum::Json(payload): axum::Json<AddressPayload>,
-) -> axum::Json<&'static str> {
-    let _ = manage_address_file(&state.file_path, &payload.address, true);
-    axum::Json("Address added")
+) -> axum::Json<String> {
+    let addrs = payload.into_addrs();
+    let count = addrs.len();
+    let _ = manage_addresses(&state.file_path, &addrs, true);
+    axum::Json(format!("{} address(es) added", count))
 }
 
 async fn api_remove_address(
     axum::extract::State(state): axum::extract::State<ApiState>,
     axum::Json(payload): axum::Json<AddressPayload>,
-) -> axum::Json<&'static str> {
-    let _ = manage_address_file(&state.file_path, &payload.address, false);
-    axum::Json("Address removed")
+) -> axum::Json<String> {
+    let addrs = payload.into_addrs();
+    let count = addrs.len();
+    let _ = manage_addresses(&state.file_path, &addrs, false);
+    axum::Json(format!("{} address(es) removed", count))
 }
 
 fn load_addresses_from_api(
