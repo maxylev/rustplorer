@@ -147,7 +147,7 @@ end_block = 250000100
 
 [[chains]]
 caip2 = "bip122:000000000019d6689c085ae165831e93"
-rpc = ["http://user:password@localhost:8332"]
+rpc = ["https://bitcoin-rpc.publicnode.com"]
 
 [assets.ETH_NATIVE]
 network = "eip155:1"
