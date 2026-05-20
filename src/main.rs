@@ -64,6 +64,7 @@ struct CliArgs {
 #[derive(Clone)]
 struct ApiState {
     file_path: PathBuf,
+    output_path: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -122,12 +123,20 @@ async fn run_watch_mode(args: CliArgs) -> Result<(), Box<dyn std::error::Error +
     if let Some(port) = args.api_port {
         let state = ApiState {
             file_path: args.addresses.clone(),
+            output_path: args.output.clone(),
         };
         tokio::spawn(async move {
             let app = axum::Router::new()
+                .route(
+                    "/",
+                    axum::routing::get(|| async {
+                        axum::response::Html(include_str!("../index.html"))
+                    }),
+                )
                 .route("/addresses", axum::routing::get(api_list_addresses))
                 .route("/addresses", axum::routing::post(api_add_address))
                 .route("/addresses", axum::routing::delete(api_remove_address))
+                .route("/deposits", axum::routing::get(api_list_deposits))
                 .with_state(state);
             let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
                 .await
@@ -391,4 +400,24 @@ fn load_addresses_from_api(
         }
     }
     Ok(addrs)
+}
+
+async fn api_list_deposits(
+    axum::extract::State(state): axum::extract::State<ApiState>,
+) -> axum::Json<Vec<DepositResult>> {
+    let mut deposits = Vec::new();
+
+    if let Some(out_path) = &state.output_path {
+        if out_path.exists() {
+            if let Ok(file) = File::open(out_path) {
+                for line in BufReader::new(file).lines().map_while(Result::ok) {
+                    if let Ok(deposit) = serde_json::from_str::<DepositResult>(&line) {
+                        deposits.push(deposit);
+                    }
+                }
+            }
+        }
+    }
+
+    axum::Json(deposits)
 }

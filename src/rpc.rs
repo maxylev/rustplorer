@@ -19,15 +19,16 @@ pub async fn execute_rpc(
                 if res.status().is_success() {
                     match res.json::<Value>().await {
                         Ok(json_res) => {
-                            if json_res.get("error").is_none() {
+                            if json_res.get("error").is_none_or(|e| e.is_null()) {
                                 return Ok(json_res);
                             } else {
+                                let err_code = json_res["error"]["code"].as_i64().unwrap_or(0);
                                 let err_msg = json_res["error"]["message"]
                                     .as_str()
                                     .unwrap_or("Unknown node error");
                                 eprintln!(
-                                    "[rustplorer] RPC endpoint [{}] returned error: {} -> retrying...",
-                                    url, err_msg
+                                    "[rustplorer] RPC endpoint [{}] returned error ({}): {} -> retrying...",
+                                    url, err_code, err_msg
                                 );
                             }
                         }

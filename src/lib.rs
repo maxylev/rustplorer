@@ -41,7 +41,7 @@ pub struct AppConfig {
     pub assets: HashMap<String, AssetConfig>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DepositResult {
     pub chain: String,
     pub token: String,

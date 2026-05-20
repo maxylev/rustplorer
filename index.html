@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rustplorer</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --primary: #bae6fd;
+            --primary-text: #0369a1;
+            --danger: #fee2e2;
+            --danger-text: #ef4444;
+            --success: #10b981;
+        }
+
+        [data-theme="dark"] {
+            --bg: #020617;
+            --surface: #0B1120;
+            --border: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #1e3a8a;
+            --primary-text: #e0f2fe;
+            --danger: #450a0a;
+            --danger-text: #f87171;
+            --success: #34d399;
+        }
+
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            transition: background 0.2s, color 0.2s;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+        }
+
+        h1 { margin: 0; font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            padding: 8px 14px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            transition: all 0.15s ease;
+        }
+
+        button:hover {
+            filter: brightness(0.95);
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: var(--primary-text);
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            filter: brightness(0.9);
+        }
+
+        .address-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .address-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .address-card.highlight {
+            animation: flash-card 2.5s ease-out;
+        }
+
+        @keyframes flash-card {
+            0% { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+            100% { border-color: var(--border); box-shadow: none; }
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+        }
+
+        .card-header .mono {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .delete-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 4px 8px;
+            font-size: 1.1rem;
+        }
+
+        .delete-btn:hover {
+            color: var(--danger-text);
+            background: var(--danger);
+        }
+
+        .card-body {
+            border-top: 1px dashed var(--border);
+            background: rgba(0, 0, 0, 0.01);
+            display: none;
+            flex-direction: column;
+        }
+
+        .card-body.has-data {
+            display: flex;
+        }
+
+        .empty-state {
+            padding: 12px 16px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .deposit-row {
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border-bottom: 1px solid var(--border);
+            animation: slide-down 0.3s ease-out;
+        }
+
+        .deposit-row:last-child {
+            border-bottom: none;
+        }
+
+        @keyframes slide-down {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .deposit-amount {
+            color: var(--success);
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .deposit-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .badge {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-size: 0.7rem;
+            color: var(--text);
+        }
+
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(2px);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal-backdrop.active { display: flex; }
+
+        .modal {
+            background: var(--surface);
+            padding: 24px;
+            border-radius: 2px;
+            width: 100%;
+            max-width: 420px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .modal h2 { margin-top: 0; font-size: 1.1rem; margin-bottom: 20px; font-weight: 500;}
+        
+        .modal input {
+            width: 100%;
+            padding: 10px 12px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+        .modal input:focus {
+            outline: 1px solid var(--primary);
+            border-color: var(--primary);
+        }
+
+        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    </style>
+</head>
+<body data-theme="dark">
+
+<div class="container">
+    <header>
+        <h1>Rustplorer</h1>
+        <div class="controls">
+            <button id="theme-btn">Light</button>
+            <button class="btn-primary" id="add-btn">Add Address</button>
+        </div>
+    </header>
+
+    <div class="address-list" id="list">
+    </div>
+</div>
+
+<div class="modal-backdrop" id="modal">
+    <div class="modal">
+        <h2>Track New Address</h2>
+        <input type="text" id="address-input" placeholder="0x..., Solana, or BTC address" autocomplete="off">
+        <div class="modal-actions">
+            <button id="cancel-btn">Cancel</button>
+            <button class="btn-primary" id="save-btn">Track</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "";
+    const seenTxHashes = new Set();
+    let currentAddresses = [];
+
+    const listEl = document.getElementById('list');
+    const modal = document.getElementById('modal');
+    const themeBtn = document.getElementById('theme-btn');
+    const inputEl = document.getElementById('address-input');
+
+    const truncate = (str, len = 6) => {
+        if (!str || str.length <= len * 2) return str;
+        return `${str.slice(0, len)}...${str.slice(-len)}`;
+    };
+
+    const formatChain = (caip2) => {
+        const chains = {
+            "eip155:1": "Ethereum",
+            "eip155:8453": "Base",
+            "eip155:137": "Polygon",
+            "eip155:42161": "Arbitrum",
+            "eip155:10": "Optimism",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Solana",
+            "bip122:000000000019d6689c085ae165831e93": "Bitcoin"
+        };
+        return chains[caip2] || caip2.split(':')[0];
+    };
+
+    themeBtn.addEventListener('click', () => {
+        const isDark = document.body.dataset.theme === 'dark';
+        document.body.dataset.theme = isDark ? 'light' : 'dark';
+        themeBtn.innerText = isDark ? 'Dark' : 'Light';
+    });
+
+    document.getElementById('add-btn').addEventListener('click', () => {
+        modal.classList.add('active');
+        inputEl.focus();
+    });
+    
+    document.getElementById('cancel-btn').addEventListener('click', () => {
+        modal.classList.remove('active');
+        inputEl.value = '';
+    });
+
+    async function fetchAddresses() {
+        try {
+            const res = await fetch(`${API_BASE}/addresses`);
+            const addresses = await res.json();
+            
+            addresses.forEach(addr => {
+                if (!currentAddresses.includes(addr)) {
+                    currentAddresses.push(addr);
+                    createAddressCard(addr);
+                }
+            });
+            
+            currentAddresses = currentAddresses.filter(addr => {
+                if (!addresses.includes(addr)) {
+                    const card = document.querySelector(`[data-address="${addr}"]`);
+                    if (card) card.remove();
+                    return false;
+                }
+                return true;
+            });
+        } catch (e) { console.error("Failed to load addresses", e); }
+    }
+
+    function createAddressCard(addr) {
+        const div = document.createElement('div');
+        div.className = 'address-card';
+        div.dataset.address = addr;
+        
+        div.innerHTML = `
+            <div class="card-header">
+                <span class="mono">${truncate(addr, 10)}</span>
+                <button class="delete-btn" title="Stop Tracking">&times;</button>
+            </div>
+            <div class="card-body"></div>
+        `;
+
+        div.querySelector('.delete-btn').addEventListener('click', () => deleteAddress(addr));
+        listEl.appendChild(div);
+    }
+
+    async function deleteAddress(address) {
+        if(!confirm("Stop tracking this address?")) return;
+        await fetch(`${API_BASE}/addresses`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address })
+        });
+        
+        const card = document.querySelector(`[data-address="${address}"]`);
+        if (card) card.remove();
+        currentAddresses = currentAddresses.filter(a => a !== address);
+    }
+
+    document.getElementById('save-btn').addEventListener('click', async () => {
+        const address = inputEl.value.trim();
+        if (!address) return;
+        
+        await fetch(`${API_BASE}/addresses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address })
+        });
+        
+        modal.classList.remove('active');
+        inputEl.value = '';
+        fetchAddresses();
+    });
+
+    async function pollDeposits() {
+        try {
+            const res = await fetch(`${API_BASE}/deposits`);
+            if(!res.ok) return;
+            const deposits = await res.json();
+            
+            deposits.forEach(d => {
+                if (!seenTxHashes.has(d.tx_hash)) {
+                    seenTxHashes.add(d.tx_hash);
+                    
+                    const targetAddr = currentAddresses.find(a => a.toLowerCase() === d.to_address.toLowerCase());
+                    
+                    if (targetAddr) {
+                        const card = document.querySelector(`[data-address="${targetAddr}"]`);
+                        if (card) {
+                            listEl.prepend(card);
+                            
+                            card.classList.remove('highlight');
+                            void card.offsetWidth;
+                            card.classList.add('highlight');
+                            
+                            const body = card.querySelector('.card-body');
+                            body.classList.add('has-data');
+                            
+                            const row = document.createElement('div');
+                            row.className = 'deposit-row';
+                            row.innerHTML = `
+                                <div class="deposit-amount">&darr; +${d.amount_clean} ${d.token}</div>
+                                <div class="deposit-meta">
+                                    <span class="badge">${formatChain(d.chain)}</span>
+                                    <span>From: <span class="mono">${truncate(d.from_address, 6)}</span></span>
+                                    <span>&middot;</span>
+                                    <span>Tx: <span class="mono">${truncate(d.tx_hash, 6)}</span></span>
+                                </div>
+                            `;
+                            
+                            body.prepend(row);
+                        }
+                    }
+                }
+            });
+        } catch (e) { console.error("Polling failed", e); }
+    }
+
+    fetchAddresses().then(() => {
+        setInterval(pollDeposits, 5000);
+        pollDeposits();
+    });
+</script>
+</body>
+</html>

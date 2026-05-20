@@ -236,19 +236,23 @@ rustplorer -a addresses.txt --watch --interval 30 --api-port 3000
 
 ## HTTP API
 
-Start an HTTP server to manage target addresses dynamically:
+Start an HTTP server to manage target addresses dynamically and visualize deposits:
 
 ```bash
-rustplorer -a addresses.txt --api-port 3000
+rustplorer -a addresses.txt --api-port 3000 -o deposits.jsonl
 ```
+
+Open `http://localhost:3000` in your browser for the real-time deposit dashboard with dark/light theme, address management, and live deposit ledger.
 
 ### Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
+| `GET` | `/` | Web UI dashboard for managing addresses and viewing deposits |
 | `GET` | `/addresses` | List all tracked addresses |
 | `POST` | `/addresses` | Add a new address |
 | `DELETE` | `/addresses` | Remove an address |
+| `GET` | `/deposits` | List all detected deposits (JSON Lines from output file) |
 
 ### Examples
 
@@ -275,7 +279,12 @@ curl -X DELETE http://localhost:3000/addresses \
 curl -X DELETE http://localhost:3000/addresses \
   -H "Content-Type: application/json" \
   -d '{"addresses": ["0xAAA...", "0xBBB..."]}'
+
+# View detected deposits
+curl http://localhost:3000/deposits
 ```
+
+> **Note:** The `/deposits` endpoint and web dashboard require an output file (`-o deposits.jsonl`). The daemon writes each new deposit as a JSON Line, which the dashboard polls every 5 seconds.
 
 ## CLI Address Management
 
