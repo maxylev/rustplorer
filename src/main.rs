@@ -107,14 +107,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         return Ok(());
     }
 
-    if args.watch {
+    if args.watch || args.api_port.is_some() {
         run_watch_mode(args).await
     } else {
-        if args.api_port.is_some() {
-            eprintln!(
-                "[rustplorer] Note: --api-port requires --watch for the dashboard to stay alive"
-            );
-        }
         run_single(args).await
     }
 }
