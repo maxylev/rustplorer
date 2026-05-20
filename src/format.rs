@@ -1,14 +1,19 @@
+use num_bigint::BigUint;
+
 pub fn format_to_human(raw_val: &str, decimals: u32) -> String {
     let numeric_str = if raw_val.starts_with("0x") || raw_val.starts_with("0X") {
-        match u128::from_str_radix(
-            raw_val.trim_start_matches("0x").trim_start_matches("0X"),
+        match BigUint::parse_bytes(
+            raw_val
+                .trim_start_matches("0x")
+                .trim_start_matches("0X")
+                .as_bytes(),
             16,
         ) {
-            Ok(v) => v.to_string(),
-            Err(_) => return raw_val.to_string(),
+            Some(v) => v.to_string(),
+            None => return raw_val.to_string(),
         }
     } else {
-        match raw_val.parse::<u128>() {
+        match raw_val.parse::<BigUint>() {
             Ok(v) => v.to_string(),
             Err(_) => return raw_val.to_string(),
         }

@@ -22,6 +22,10 @@ pub struct ChainConfig {
     pub rpc: Vec<String>,
     pub start_block: Option<u64>,
     pub end_block: Option<u64>,
+    #[serde(default)]
+    pub rpc_delay_ms: Option<u64>,
+    #[serde(default)]
+    pub max_concurrent: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -46,6 +50,7 @@ pub struct DepositResult {
     pub amount_raw: String,
     pub amount_clean: String,
     pub block_number: u64,
+    pub tx_hash: String,
 }
 
 #[derive(Debug, Clone)]
@@ -58,52 +63,6 @@ pub struct IndexerResult {
 pub enum Format {
     Json,
     Csv,
-}
-
-pub async fn fetch_evm_block_number(
-    client: &reqwest::Client,
-    rpc_urls: &[String],
-) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
-    let payload = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "eth_blockNumber",
-        "params": []
-    });
-    let res = rpc::execute_rpc(client, rpc_urls, &payload).await?;
-    let hex = res["result"]
-        .as_str()
-        .unwrap_or("0x0")
-        .trim_start_matches("0x");
-    Ok(u64::from_str_radix(hex, 16).unwrap_or(0))
-}
-
-pub async fn fetch_solana_slot(
-    client: &reqwest::Client,
-    rpc_urls: &[String],
-) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
-    let payload = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "getSlot",
-        "params": []
-    });
-    let res = rpc::execute_rpc(client, rpc_urls, &payload).await?;
-    Ok(res["result"].as_u64().unwrap_or(0))
-}
-
-pub async fn fetch_btc_block_number(
-    client: &reqwest::Client,
-    rpc_urls: &[String],
-) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
-    let payload = serde_json::json!({
-        "jsonrpc": "1.0",
-        "id": "rustplorer",
-        "method": "getblockcount",
-        "params": []
-    });
-    let res = rpc::execute_rpc(client, rpc_urls, &payload).await?;
-    Ok(res["result"].as_u64().unwrap_or(0))
 }
 
 pub fn load_config(
@@ -177,11 +136,17 @@ pub async fn run_indexer(
 
             let current_tip = if needs_tip {
                 if is_evm {
-                    fetch_evm_block_number(&client_clone, &rpc_clone).await.ok()
+                    evm::EvmScanner::get_tip(&client_clone, &rpc_clone)
+                        .await
+                        .ok()
                 } else if is_solana {
-                    fetch_solana_slot(&client_clone, &rpc_clone).await.ok()
+                    solana::SolanaScanner::get_tip(&client_clone, &rpc_clone)
+                        .await
+                        .ok()
                 } else if is_btc {
-                    fetch_btc_block_number(&client_clone, &rpc_clone).await.ok()
+                    btc::BtcScanner::get_tip(&client_clone, &rpc_clone)
+                        .await
+                        .ok()
                 } else {
                     None
                 }
@@ -214,11 +179,16 @@ pub async fn run_indexer(
                 caip2, start_block, end_block
             );
 
+            let rpc_delay = chain.rpc_delay_ms;
+            let max_concurrent = chain.max_concurrent.unwrap_or(5);
+
             if is_evm {
                 let scanner = evm::EvmScanner {
                     rpc_urls: rpc_clone,
                     caip2,
                     assets: assets_map,
+                    rpc_delay_ms: rpc_delay,
+                    max_concurrent,
                 };
                 let _ = scanner
                     .scan(
@@ -234,6 +204,8 @@ pub async fn run_indexer(
                     rpc_urls: rpc_clone,
                     caip2,
                     assets: assets_map,
+                    rpc_delay_ms: rpc_delay,
+                    max_concurrent,
                 };
                 let _ = scanner
                     .scan(
@@ -249,6 +221,8 @@ pub async fn run_indexer(
                     rpc_urls: rpc_clone,
                     caip2,
                     assets: assets_map,
+                    rpc_delay_ms: rpc_delay,
+                    max_concurrent,
                 };
                 let _ = scanner
                     .scan(

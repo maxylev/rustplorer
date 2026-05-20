@@ -50,6 +50,8 @@ async fn test_solana_local_validator_connectivity() {
         rpc: vec![url.to_string()],
         start_block: Some(start_slot),
         end_block: Some(current_slot),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -100,6 +102,8 @@ async fn test_solana_local_validator_detect_airdrop() {
         rpc: vec![url.to_string()],
         start_block: Some(start_slot),
         end_block: Some(current_slot),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();

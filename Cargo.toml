@@ -1,6 +1,6 @@
 [package]
 name = "rustplorer"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "High-performance multi-chain deposit detector using public RPC endpoints"
 license = "MIT OR Apache-2.0"
@@ -30,6 +30,7 @@ csv = "1"
 hex = "0.4"
 axum = "0.7"
 rust_decimal = "1.33"
+num-bigint = "0.4"
 
 [dev-dependencies]
 mockito = "1"

@@ -102,7 +102,7 @@ cargo install --path .
 
 ```toml
 [dependencies]
-rustplorer = "0.3"
+rustplorer = "0.4"
 ```
 
 ## Quick Start
@@ -336,7 +336,8 @@ Options:
     "to_address": "0x71c7656ec7ab88b098defb751b7401b5f6d8976f",
     "amount_raw": "0x0000000000000000000000000000000000000000000000000000000002faf080",
     "amount_clean": "50",
-    "block_number": 12000542
+    "block_number": 12000542,
+    "tx_hash": "0xabc123..."
   },
   {
     "chain": "eip155:1",
@@ -345,7 +346,8 @@ Options:
     "to_address": "0x01bf3a00a11a417eef11a8aa0aa341bd7aa010fa",
     "amount_raw": "0xde0b6b3a7640000",
     "amount_clean": "1",
-    "block_number": 19000210
+    "block_number": 19000210,
+    "tx_hash": "0xdef456..."
   },
   {
     "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
@@ -354,7 +356,8 @@ Options:
     "to_address": "3zCGKxMK3JHNUMtHbticPoDvoRbUgzY65ayoHMWZwZE2",
     "amount_raw": "2500000000",
     "amount_clean": "2.5",
-    "block_number": 263
+    "block_number": 263,
+    "tx_hash": "5Gx..."
   },
   {
     "chain": "bip122:000000000019d6689c085ae165831e93",
@@ -363,7 +366,8 @@ Options:
     "to_address": "bc1qtargetaddress1234567890",
     "amount_raw": "150000000",
     "amount_clean": "1.5",
-    "block_number": 830000
+    "block_number": 830000,
+    "tx_hash": "a1b2c3..."
   }
 ]
 ```
@@ -371,11 +375,11 @@ Options:
 ### CSV
 
 ```csv
-chain,token,from_address,to_address,amount_raw,amount_clean,block_number
-eip155:8453,USDC_BASE,0x20f3a60a...,0x71c7656e...,0x...02faf080,50,12000542
-eip155:1,Native,0xd8da6bf2...,0x01bf3a00...,0x0de0b6b3a7640000,1,19000210
-solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp,Native,E45GKD1q...,3zCGKxMK...,2500000000,2.5,263
-bip122:000000000019d6689c085ae165831e93,Native,bc1qsender...,bc1qtarget...,150000000,1.5,830000
+chain,token,from_address,to_address,amount_raw,amount_clean,block_number,tx_hash
+eip155:8453,USDC_BASE,0x20f3a60a...,0x71c7656e...,0x...02faf080,50,12000542,0xabc123...
+eip155:1,Native,0xd8da6bf2...,0x01bf3a00...,0x0de0b6b3a7640000,1,19000210,0xdef456...
+solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp,Native,E45GKD1q...,3zCGKxMK...,2500000000,2.5,263,5Gx...
+bip122:000000000019d6689c085ae165831e93,Native,bc1qsender...,bc1qtarget...,150000000,1.5,830000,a1b2c3...
 ```
 
 ## Programmatic Usage
@@ -532,11 +536,13 @@ The E2E tests perform real transfers on local chains:
 ### Chain (`[[chains]]`)
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+|---|---|---|---|---|
 | `caip2` | string | yes | CAIP-2 chain ID (e.g. `eip155:1`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `bip122:000000000019d6689c085ae165831e93`) |
 | `rpc` | string[] | yes | One or more public RPC URLs |
 | `start_block` | uint64 | no | First block/slot (defaults to `end_block - lookback`) |
 | `end_block` | uint64 | no | Last block/slot (defaults to node tip) |
+| `rpc_delay_ms` | uint64 | no | Delay between RPC chunks in ms (default: 100 EVM, 200 Solana, 100 BTC) |
+| `max_concurrent` | uint | no | Max concurrent RPC requests (default: 5). Set lower for free/public RPCs. |
 
 ### Asset (`[assets.NAME]`)
 

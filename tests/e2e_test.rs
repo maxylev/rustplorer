@@ -54,6 +54,8 @@ async fn e2e_evm_native_eth_deposit() {
         rpc: vec![ANVIL_RPC.to_string()],
         start_block: Some(0),
         end_block: Some(10),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -92,6 +94,7 @@ async fn e2e_evm_native_eth_deposit() {
     assert_eq!(deposit.amount_clean, "1");
     assert_eq!(deposit.from_address, FROM.to_lowercase());
     assert_eq!(deposit.to_address, TO.to_lowercase());
+    assert!(!deposit.tx_hash.is_empty(), "tx_hash should not be empty");
 }
 
 #[tokio::test]
@@ -110,6 +113,8 @@ async fn e2e_evm_erc20_deposit() {
         rpc: vec![ANVIL_RPC.to_string()],
         start_block: Some(0),
         end_block: Some(10),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -147,6 +152,10 @@ async fn e2e_evm_erc20_deposit() {
         .unwrap();
     assert_eq!(transfer_deposit.amount_clean, "50");
     assert_eq!(transfer_deposit.to_address, TO.to_lowercase());
+    assert!(
+        !transfer_deposit.tx_hash.is_empty(),
+        "tx_hash should not be empty"
+    );
 }
 
 #[tokio::test]
@@ -178,6 +187,8 @@ async fn e2e_solana_native_deposit() {
         rpc: vec![SOLANA_RPC.to_string()],
         start_block: Some(start_slot),
         end_block: Some(current_slot),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -215,6 +226,7 @@ async fn e2e_solana_native_deposit() {
     assert_eq!(deposit.token, "Native");
     assert_eq!(deposit.to_address, SOL_RECEIVER);
     assert_eq!(deposit.amount_clean, "2.5");
+    assert!(!deposit.tx_hash.is_empty(), "tx_hash should not be empty");
 }
 
 #[tokio::test]
@@ -230,6 +242,8 @@ async fn e2e_evm_auto_end_block() {
         rpc: vec![ANVIL_RPC.to_string()],
         start_block: Some(0),
         end_block: None,
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -288,6 +302,8 @@ async fn e2e_btc_native_deposit() {
         rpc: vec![BTC_RPC.to_string()],
         start_block: Some(start_block),
         end_block: Some(current_block),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -322,5 +338,6 @@ async fn e2e_btc_native_deposit() {
         assert_eq!(deposit.token, "Native");
         assert_eq!(deposit.to_address, target);
         assert!(!deposit.amount_raw.is_empty());
+        assert!(!deposit.tx_hash.is_empty(), "tx_hash should not be empty");
     }
 }

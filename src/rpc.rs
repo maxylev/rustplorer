@@ -9,9 +9,11 @@ pub async fn execute_rpc(
         return Err("No RPC endpoints provided".into());
     }
 
-    let mut last_error: Option<String> = None;
+    let max_total_attempts = urls.len() * 3;
 
-    for (index, url) in urls.iter().enumerate() {
+    for attempt in 0..max_total_attempts {
+        let url = &urls[attempt % urls.len()];
+
         match client.post(url).json(payload).send().await {
             Ok(res) => {
                 if res.status().is_success() {
@@ -23,44 +25,40 @@ pub async fn execute_rpc(
                                 let err_msg = json_res["error"]["message"]
                                     .as_str()
                                     .unwrap_or("Unknown node error");
-                                last_error = Some(format!(
-                                    "RPC endpoint [{}] (index {}) returned error: {}",
-                                    url, index, err_msg
-                                ));
+                                eprintln!(
+                                    "[rustplorer] RPC endpoint [{}] returned error: {} -> retrying...",
+                                    url, err_msg
+                                );
                             }
                         }
                         Err(e) => {
-                            last_error =
-                                Some(format!("Failed to parse JSON from [{}]: {}", url, e));
+                            eprintln!("[rustplorer] Failed to parse JSON from [{}]: {}", url, e);
                         }
                     }
                 } else {
                     let status = res.status();
                     let body = res.text().await.unwrap_or_default();
-                    last_error = Some(format!(
-                        "RPC endpoint [{}] returned HTTP {}: {}",
+                    eprintln!(
+                        "[rustplorer] RPC endpoint [{}] returned HTTP {}: {} -> retrying...",
                         url,
                         status,
                         body.chars().take(200).collect::<String>()
-                    ));
+                    );
                 }
             }
             Err(e) => {
-                last_error = Some(format!("Connection failed to [{}]: {}", url, e));
+                eprintln!("[rustplorer] Connection failed to [{}]: {}", url, e);
             }
         }
 
-        if let Some(ref err) = last_error {
-            eprintln!("[rustplorer] {} -> trying next endpoint...", err);
-        }
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+        let backoff_ms = 150u64 * 2u64.pow(attempt as u32).min(10_000);
+        tokio::time::sleep(tokio::time::Duration::from_millis(backoff_ms)).await;
     }
 
     Err(format!(
-        "All {} RPC endpoints failed. Last error: {}",
+        "All {} RPC endpoints exhausted after {} total attempts",
         urls.len(),
-        last_error.unwrap_or_default()
+        max_total_attempts,
     )
     .into())
 }

@@ -9,6 +9,8 @@ fn make_evm_config(rpc_url: &str) -> (Vec<ChainConfig>, HashMap<String, AssetCon
         rpc: vec![rpc_url.to_string()],
         start_block: Some(0x121212),
         end_block: Some(0x121212),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -74,6 +76,7 @@ async fn test_evm_erc20_deposit_detection() {
     );
     assert_eq!(deposit.amount_clean, "50");
     assert_eq!(deposit.block_number, 0x121212);
+    assert_eq!(deposit.tx_hash, "0xabc123");
 }
 
 #[tokio::test]
@@ -115,6 +118,7 @@ async fn test_evm_native_deposit_detection() {
         deposit.from_address,
         "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
     );
+    assert_eq!(deposit.tx_hash, "0xdef456");
 }
 
 #[tokio::test]
@@ -164,6 +168,8 @@ async fn test_rpc_fallback_on_error() {
         rpc: vec![server1.url(), server2.url()],
         start_block: Some(100),
         end_block: Some(100),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -212,6 +218,8 @@ async fn test_rpc_fallback_on_json_error() {
         rpc: vec![server1.url(), server2.url()],
         start_block: Some(100),
         end_block: Some(100),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -249,6 +257,7 @@ async fn test_solana_native_deposit_detection() {
                     "blockHeight": 100,
                     "transactions": [{
                         "transaction": {
+                            "signatures": ["sol_sig_mock_001"],
                             "message": {
                                 "accountKeys": [
                                     "SenderWallet1111111111111111111111111",
@@ -276,6 +285,8 @@ async fn test_solana_native_deposit_detection() {
         rpc: vec![server.url()],
         start_block: Some(100),
         end_block: Some(100),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -309,6 +320,7 @@ async fn test_solana_native_deposit_detection() {
     assert_eq!(deposit.amount_raw, "2000000000");
     assert_eq!(deposit.amount_clean, "2");
     assert_eq!(deposit.block_number, 100);
+    assert_eq!(deposit.tx_hash, "sol_sig_mock_001");
 }
 
 #[tokio::test]
@@ -380,6 +392,8 @@ fn make_btc_config(rpc_url: &str) -> (Vec<ChainConfig>, HashMap<String, AssetCon
         rpc: vec![rpc_url.to_string()],
         start_block: Some(830000),
         end_block: Some(830000),
+        rpc_delay_ms: None,
+        max_concurrent: Some(0),
     }];
 
     let mut assets = HashMap::new();
@@ -422,6 +436,7 @@ async fn test_btc_native_deposit_detection() {
                 "result": {
                     "tx": [
                         {
+                            "txid": "mock_txid_btc_001",
                             "vin": [{
                                 "prevout": {
                                     "scriptPubKey": {
@@ -470,4 +485,5 @@ async fn test_btc_native_deposit_detection() {
 
     assert_eq!(deposit.amount_clean, "1.5");
     assert_eq!(deposit.block_number, 830000);
+    assert_eq!(deposit.tx_hash, "mock_txid_btc_001");
 }
