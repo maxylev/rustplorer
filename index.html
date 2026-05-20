@@ -1,448 +1,1534 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rustplorer</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    
-    <style>
-        :root {
-            --bg: #f8fafc;
-            --surface: #ffffff;
-            --border: #e2e8f0;
-            --text: #0f172a;
-            --text-muted: #64748b;
-            --primary: #bae6fd;
-            --primary-text: #0369a1;
-            --danger: #fee2e2;
-            --danger-text: #ef4444;
-            --success: #10b981;
-        }
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Rustplorer</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Syne+Mono:wght@400&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --bg: #07070f;
+                --surface: #0e0e1c;
+                --surface2: #141428;
+                --border: #1d1d35;
+                --border2: #2a2a48;
+                --text: #e2e0ff;
+                --muted: #5c5a80;
+                --muted2: #8886b0;
+                --accent: #f59e0b;
+                --accent-dim: #7a4f06;
+                --teal: #2dd4bf;
+                --teal-dim: #0d4a44;
+                --indigo: #818cf8;
+                --indigo-dim: #1e2358;
+                --danger: #f87171;
+                --danger-dim: #3b1111;
+                --success: #34d399;
 
-        [data-theme="dark"] {
-            --bg: #020617;
-            --surface: #0B1120;
-            --border: #1e293b;
-            --text: #f8fafc;
-            --text-muted: #94a3b8;
-            --primary: #1e3a8a;
-            --primary-text: #e0f2fe;
-            --danger: #450a0a;
-            --danger-text: #f87171;
-            --success: #34d399;
-        }
+                --chain-eth: #627eea;
+                --chain-base: #2151f5;
+                --chain-sol: #9945ff;
+                --chain-btc: #f7931a;
+                --chain-poly: #8247e5;
+                --chain-arb: #28a0f0;
+                --chain-opt: #ff0420;
+            }
 
-        * { box-sizing: border-box; }
-        
-        body {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            transition: background 0.2s, color 0.2s;
-            line-height: 1.5;
-            -webkit-font-smoothing: antialiased;
-        }
+            [data-theme="light"] {
+                --bg: #f4f3ff;
+                --surface: #ffffff;
+                --surface2: #f0effc;
+                --border: #dddcf7;
+                --border2: #c9c7f0;
+                --text: #1a193a;
+                --muted: #9897c0;
+                --muted2: #6564a0;
+                --accent: #d97706;
+                --accent-dim: #fef3c7;
+                --teal: #0d9488;
+                --teal-dim: #ccfbf1;
+                --indigo: #4f46e5;
+                --indigo-dim: #e0e7ff;
+                --danger: #dc2626;
+                --danger-dim: #fee2e2;
+                --success: #059669;
+            }
 
-        .mono {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85em;
-        }
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
 
-        .container {
-            max-width: 640px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
+            body {
+                font-family: "Inter", sans-serif;
+                background: var(--bg);
+                color: var(--text);
+                min-height: 100vh;
+                font-size: 14px;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+                transition:
+                    background 0.25s,
+                    color 0.25s;
+            }
 
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 32px;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 16px;
-        }
+            /* Subtle grid texture */
+            body::before {
+                content: "";
+                position: fixed;
+                inset: 0;
+                background-image:
+                    linear-gradient(var(--border) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+                background-size: 40px 40px;
+                opacity: 0.25;
+                pointer-events: none;
+                z-index: 0;
+            }
 
-        h1 { margin: 0; font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
+            .app {
+                position: relative;
+                z-index: 1;
+                display: grid;
+                grid-template-rows: auto 1fr;
+                min-height: 100vh;
+            }
 
-        .controls {
-            display: flex;
-            gap: 12px;
-        }
+            /* ── Header ────────────────────────────────── */
+            header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 0 24px;
+                height: 56px;
+                border-bottom: 1px solid var(--border);
+                background: var(--surface);
+                position: sticky;
+                top: 0;
+                z-index: 50;
+            }
 
-        button {
-            border: 1px solid var(--border);
-            background: var(--surface);
-            color: var(--text);
-            padding: 8px 14px;
-            border-radius: 2px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-family: 'Inter', sans-serif;
-            font-weight: 500;
-            transition: all 0.15s ease;
-        }
+            .logo {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-weight: 800;
+                font-size: 16px;
+                letter-spacing: -0.03em;
+                color: var(--text);
+                text-decoration: none;
+            }
 
-        button:hover {
-            filter: brightness(0.95);
-        }
-        
-        .btn-primary {
-            background: var(--primary);
-            color: var(--primary-text);
-            border-color: var(--primary);
-        }
+            .logo-icon {
+                width: 28px;
+                height: 28px;
+                background: var(--accent);
+                border-radius: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
 
-        .btn-primary:hover {
-            filter: brightness(0.9);
-        }
+            .logo-icon svg {
+                width: 16px;
+                height: 16px;
+            }
 
-        .address-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
+            .live-status {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 11px;
+                color: var(--muted2);
+                margin-left: 4px;
+            }
 
-        .address-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 2px;
-            display: flex;
-            flex-direction: column;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
+            .live-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--success);
+                flex-shrink: 0;
+                animation: pulse-dot 2s ease-in-out infinite;
+            }
 
-        .address-card.highlight {
-            animation: flash-card 2.5s ease-out;
-        }
-
-        @keyframes flash-card {
-            0% { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
-            100% { border-color: var(--border); box-shadow: none; }
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px;
-        }
-
-        .card-header .mono {
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: var(--text);
-        }
-
-        .delete-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            padding: 4px 8px;
-            font-size: 1.1rem;
-        }
-
-        .delete-btn:hover {
-            color: var(--danger-text);
-            background: var(--danger);
-        }
-
-        .card-body {
-            border-top: 1px dashed var(--border);
-            background: rgba(0, 0, 0, 0.01);
-            display: none;
-            flex-direction: column;
-        }
-
-        .card-body.has-data {
-            display: flex;
-        }
-
-        .empty-state {
-            padding: 12px 16px;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        .deposit-row {
-            padding: 12px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            border-bottom: 1px solid var(--border);
-            animation: slide-down 0.3s ease-out;
-        }
-
-        .deposit-row:last-child {
-            border-bottom: none;
-        }
-
-        @keyframes slide-down {
-            from { opacity: 0; transform: translateY(-4px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .deposit-amount {
-            color: var(--success);
-            font-weight: 600;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .deposit-meta {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-
-        .badge {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            padding: 2px 6px;
-            border-radius: 2px;
-            font-size: 0.7rem;
-            color: var(--text);
-        }
-
-        .modal-backdrop {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(2px);
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-        }
-
-        .modal-backdrop.active { display: flex; }
-
-        .modal {
-            background: var(--surface);
-            padding: 24px;
-            border-radius: 2px;
-            width: 100%;
-            max-width: 420px;
-            border: 1px solid var(--border);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        }
-
-        .modal h2 { margin-top: 0; font-size: 1.1rem; margin-bottom: 20px; font-weight: 500;}
-        
-        .modal input {
-            width: 100%;
-            padding: 10px 12px;
-            margin-bottom: 20px;
-            border: 1px solid var(--border);
-            border-radius: 2px;
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-        }
-        .modal input:focus {
-            outline: 1px solid var(--primary);
-            border-color: var(--primary);
-        }
-
-        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-    </style>
-</head>
-<body data-theme="dark">
-
-<div class="container">
-    <header>
-        <h1>Rustplorer</h1>
-        <div class="controls">
-            <button id="theme-btn">Light</button>
-            <button class="btn-primary" id="add-btn">Add Address</button>
-        </div>
-    </header>
-
-    <div class="address-list" id="list">
-    </div>
-</div>
-
-<div class="modal-backdrop" id="modal">
-    <div class="modal">
-        <h2>Track New Address</h2>
-        <input type="text" id="address-input" placeholder="0x..., Solana, or BTC address" autocomplete="off">
-        <div class="modal-actions">
-            <button id="cancel-btn">Cancel</button>
-            <button class="btn-primary" id="save-btn">Track</button>
-        </div>
-    </div>
-</div>
-
-<script>
-    const API_BASE = "";
-    const seenTxHashes = new Set();
-    let currentAddresses = [];
-
-    const listEl = document.getElementById('list');
-    const modal = document.getElementById('modal');
-    const themeBtn = document.getElementById('theme-btn');
-    const inputEl = document.getElementById('address-input');
-
-    const truncate = (str, len = 6) => {
-        if (!str || str.length <= len * 2) return str;
-        return `${str.slice(0, len)}...${str.slice(-len)}`;
-    };
-
-    const formatChain = (caip2) => {
-        const chains = {
-            "eip155:1": "Ethereum",
-            "eip155:8453": "Base",
-            "eip155:137": "Polygon",
-            "eip155:42161": "Arbitrum",
-            "eip155:10": "Optimism",
-            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Solana",
-            "bip122:000000000019d6689c085ae165831e93": "Bitcoin"
-        };
-        return chains[caip2] || caip2.split(':')[0];
-    };
-
-    themeBtn.addEventListener('click', () => {
-        const isDark = document.body.dataset.theme === 'dark';
-        document.body.dataset.theme = isDark ? 'light' : 'dark';
-        themeBtn.innerText = isDark ? 'Dark' : 'Light';
-    });
-
-    document.getElementById('add-btn').addEventListener('click', () => {
-        modal.classList.add('active');
-        inputEl.focus();
-    });
-    
-    document.getElementById('cancel-btn').addEventListener('click', () => {
-        modal.classList.remove('active');
-        inputEl.value = '';
-    });
-
-    async function fetchAddresses() {
-        try {
-            const res = await fetch(`${API_BASE}/addresses`);
-            const addresses = await res.json();
-            
-            addresses.forEach(addr => {
-                if (!currentAddresses.includes(addr)) {
-                    currentAddresses.push(addr);
-                    createAddressCard(addr);
+            @keyframes pulse-dot {
+                0%,
+                100% {
+                    opacity: 1;
+                    box-shadow: 0 0 0 0
+                        color-mix(in srgb, var(--success) 40%, transparent);
                 }
-            });
-            
-            currentAddresses = currentAddresses.filter(addr => {
-                if (!addresses.includes(addr)) {
-                    const card = document.querySelector(`[data-address="${addr}"]`);
-                    if (card) card.remove();
-                    return false;
+                50% {
+                    opacity: 0.7;
+                    box-shadow: 0 0 0 4px transparent;
                 }
-                return true;
-            });
-        } catch (e) { console.error("Failed to load addresses", e); }
-    }
+            }
 
-    function createAddressCard(addr) {
-        const div = document.createElement('div');
-        div.className = 'address-card';
-        div.dataset.address = addr;
-        
-        div.innerHTML = `
-            <div class="card-header">
-                <span class="mono">${truncate(addr, 10)}</span>
-                <button class="delete-btn" title="Stop Tracking">&times;</button>
+            .live-dot.stale {
+                background: var(--accent);
+                animation: none;
+            }
+            .live-dot.error {
+                background: var(--danger);
+                animation: none;
+            }
+
+            header .spacer {
+                flex: 1;
+            }
+
+            .header-actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            /* ── Buttons ────────────────────────────────── */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 32px;
+                padding: 0 12px;
+                border-radius: 6px;
+                border: 1px solid var(--border2);
+                background: var(--surface2);
+                color: var(--muted2);
+                font-family: "Syne", sans-serif;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                transition:
+                    border-color 0.15s,
+                    color 0.15s,
+                    background 0.15s;
+                white-space: nowrap;
+                letter-spacing: 0.02em;
+            }
+            .btn:hover {
+                border-color: var(--border2);
+                color: var(--text);
+                background: var(--surface2);
+            }
+
+            .btn-primary {
+                background: var(--accent);
+                border-color: var(--accent);
+                color: #0a0500;
+            }
+            .btn-primary:hover {
+                filter: brightness(1.1);
+            }
+
+            .btn-icon {
+                width: 32px;
+                padding: 0;
+                justify-content: center;
+            }
+
+            /* ── Main layout ────────────────────────────────── */
+            .main {
+                display: grid;
+                grid-template-columns: 280px 1fr;
+                min-height: 0;
+                height: calc(100vh - 56px);
+            }
+
+            .sidebar {
+                border-right: 1px solid var(--border);
+                background: var(--surface);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .panel-header {
+                padding: 16px 16px 12px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                border-bottom: 1px solid var(--border);
+                flex-shrink: 0;
+            }
+
+            .panel-label {
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+
+            .panel-count {
+                font-size: 10px;
+                font-weight: 700;
+                background: var(--indigo-dim);
+                color: var(--indigo);
+                padding: 2px 7px;
+                border-radius: 20px;
+            }
+
+            .address-list {
+                flex: 1;
+                overflow-y: auto;
+                padding: 8px;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .address-list::-webkit-scrollbar {
+                width: 4px;
+            }
+            .address-list::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .address-list::-webkit-scrollbar-thumb {
+                background: var(--border2);
+                border-radius: 2px;
+            }
+
+            /* ── Address card ────────────────────────────────── */
+            .addr-card {
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                background: var(--surface2);
+                padding: 10px 12px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                cursor: pointer;
+                transition:
+                    border-color 0.15s,
+                    background 0.15s;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .addr-card::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 3px;
+                background: var(--indigo);
+                border-radius: 8px 0 0 8px;
+                opacity: 0;
+                transition: opacity 0.15s;
+            }
+
+            .addr-card:hover {
+                border-color: var(--border2);
+                background: var(--surface2);
+            }
+            .addr-card:hover::before {
+                opacity: 1;
+            }
+            .addr-card.active {
+                border-color: var(--indigo-dim);
+                background: var(--indigo-dim);
+            }
+            .addr-card.active::before {
+                opacity: 1;
+                background: var(--indigo);
+            }
+
+            .addr-card.new-flash {
+                animation: addr-flash 1.5s ease-out;
+            }
+            @keyframes addr-flash {
+                0% {
+                    border-color: var(--accent);
+                    box-shadow: 0 0 0 1px var(--accent-dim);
+                }
+                100% {
+                    border-color: var(--border);
+                    box-shadow: none;
+                }
+            }
+
+            .addr-avatar {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                background: var(--indigo-dim);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                font-family: "Syne Mono", monospace;
+                font-size: 10px;
+                color: var(--indigo);
+                font-weight: 500;
+            }
+
+            .addr-info {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .addr-hash {
+                font-family: "Syne Mono", monospace;
+                font-size: 12px;
+                color: var(--text);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                display: block;
+            }
+
+            .addr-meta {
+                font-size: 10px;
+                color: var(--muted);
+                margin-top: 2px;
+            }
+
+            .addr-badge {
+                font-size: 10px;
+                font-weight: 600;
+                padding: 2px 6px;
+                border-radius: 4px;
+                background: var(--teal-dim);
+                color: var(--teal);
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+
+            .addr-badge[data-count="0"] {
+                background: var(--surface);
+                color: var(--muted);
+            }
+
+            .addr-del {
+                width: 20px;
+                height: 20px;
+                border-radius: 4px;
+                border: none;
+                background: transparent;
+                color: var(--muted);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                font-size: 14px;
+                transition:
+                    background 0.15s,
+                    color 0.15s;
+                opacity: 0;
+            }
+
+            .addr-card:hover .addr-del {
+                opacity: 1;
+            }
+            .addr-del:hover {
+                background: var(--danger-dim);
+                color: var(--danger);
+            }
+
+            .sidebar-footer {
+                padding: 12px;
+                border-top: 1px solid var(--border);
+                flex-shrink: 0;
+            }
+
+            /* ── Feed panel ────────────────────────────────── */
+            .feed-panel {
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                background: var(--bg);
+            }
+
+            .feed-list {
+                flex: 1;
+                overflow-y: auto;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .feed-list::-webkit-scrollbar {
+                width: 4px;
+            }
+            .feed-list::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .feed-list::-webkit-scrollbar-thumb {
+                background: var(--border);
+                border-radius: 2px;
+            }
+
+            /* ── Deposit entry ────────────────────────────────── */
+            .deposit-entry {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 14px 16px;
+                display: grid;
+                grid-template-columns: auto 1fr auto;
+                gap: 12px;
+                align-items: center;
+                animation: slide-in 0.3s cubic-bezier(0.2, 0.8, 0.4, 1);
+            }
+
+            @keyframes slide-in {
+                from {
+                    opacity: 0;
+                    transform: translateY(-8px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .deposit-entry.new {
+                border-color: var(--accent-dim);
+                background: linear-gradient(
+                    135deg,
+                    var(--surface) 0%,
+                    color-mix(in srgb, var(--accent-dim) 30%, var(--surface))
+                        100%
+                );
+            }
+
+            .deposit-arrow {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                background: color-mix(in srgb, var(--accent) 15%, transparent);
+                border: 1px solid
+                    color-mix(in srgb, var(--accent) 30%, transparent);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--accent);
+                flex-shrink: 0;
+                font-size: 14px;
+            }
+
+            .deposit-body {
+                min-width: 0;
+            }
+
+            .deposit-amount {
+                font-size: 16px;
+                font-weight: 700;
+                color: var(--accent);
+                letter-spacing: -0.02em;
+                white-space: nowrap;
+            }
+
+            .deposit-amount span {
+                font-size: 12px;
+                font-weight: 600;
+                opacity: 0.7;
+                margin-left: 3px;
+            }
+
+            .deposit-details {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-top: 4px;
+            }
+
+            .chain-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 10px;
+                font-weight: 700;
+                padding: 2px 7px;
+                border-radius: 20px;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+
+            .chain-dot {
+                width: 5px;
+                height: 5px;
+                border-radius: 50%;
+                flex-shrink: 0;
+            }
+
+            .deposit-addr {
+                font-family: "Syne Mono", monospace;
+                font-size: 11px;
+                color: var(--muted2);
+            }
+
+            .deposit-addr strong {
+                color: var(--muted2);
+                font-weight: 400;
+            }
+
+            .deposit-time {
+                font-size: 11px;
+                color: var(--muted);
+                white-space: nowrap;
+                text-align: right;
+            }
+
+            .tx-chip {
+                font-family: "Syne Mono", monospace;
+                font-size: 10px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
+
+            /* ── Empty states ────────────────────────────────── */
+            .empty-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                padding: 40px 20px;
+                text-align: center;
+                color: var(--muted);
+            }
+
+            .empty-state svg {
+                opacity: 0.3;
+            }
+            .empty-state-title {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--muted2);
+            }
+            .empty-state-sub {
+                font-size: 12px;
+                line-height: 1.6;
+                max-width: 200px;
+            }
+
+            /* ── Modal ────────────────────────────────── */
+            .modal-bg {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.7);
+                backdrop-filter: blur(4px);
+                z-index: 200;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+
+            .modal-bg.open {
+                display: flex;
+            }
+
+            .modal {
+                background: var(--surface);
+                border: 1px solid var(--border2);
+                border-radius: 14px;
+                width: 100%;
+                max-width: 440px;
+                padding: 28px;
+                box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+                animation: modal-in 0.2s cubic-bezier(0.2, 0.9, 0.4, 1);
+            }
+
+            @keyframes modal-in {
+                from {
+                    opacity: 0;
+                    transform: scale(0.95) translateY(8px);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1) translateY(0);
+                }
+            }
+
+            .modal-title {
+                font-size: 18px;
+                font-weight: 800;
+                letter-spacing: -0.03em;
+                margin-bottom: 4px;
+            }
+
+            .modal-sub {
+                font-size: 12px;
+                color: var(--muted2);
+                margin-bottom: 20px;
+            }
+
+            .input-wrap {
+                position: relative;
+                margin-bottom: 20px;
+            }
+
+            .input-wrap input {
+                width: 100%;
+                height: 44px;
+                padding: 0 14px;
+                padding-right: 40px;
+                background: var(--bg);
+                border: 1px solid var(--border2);
+                border-radius: 8px;
+                color: var(--text);
+                font-family: "Syne Mono", monospace;
+                font-size: 13px;
+                outline: none;
+                transition: border-color 0.15s;
+            }
+
+            .input-wrap input:focus {
+                border-color: var(--indigo);
+            }
+            .input-wrap input::placeholder {
+                color: var(--muted);
+            }
+
+            .input-clear {
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                color: var(--muted);
+                cursor: pointer;
+                font-size: 16px;
+                line-height: 1;
+                display: none;
+            }
+
+            .input-wrap input:not(:placeholder-shown) ~ .input-clear {
+                display: block;
+            }
+
+            .chain-hint {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+                margin-bottom: 24px;
+            }
+
+            .chain-tag {
+                font-size: 10px;
+                font-weight: 600;
+                padding: 3px 8px;
+                border-radius: 20px;
+                border: 1px solid var(--border);
+                color: var(--muted2);
+                letter-spacing: 0.04em;
+            }
+
+            .modal-actions {
+                display: flex;
+                gap: 8px;
+                justify-content: flex-end;
+            }
+
+            /* ── Copy toast ────────────────────────────────── */
+            .toast {
+                position: fixed;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%) translateY(16px);
+                background: var(--text);
+                color: var(--bg);
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+                opacity: 0;
+                transition:
+                    opacity 0.2s,
+                    transform 0.2s;
+                pointer-events: none;
+                z-index: 999;
+                white-space: nowrap;
+            }
+
+            .toast.show {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+
+            /* ── Status bar ────────────────────────────────── */
+            .status-bar {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 0 16px;
+                height: 36px;
+                border-top: 1px solid var(--border);
+                font-size: 11px;
+                color: var(--muted);
+                background: var(--surface);
+                flex-shrink: 0;
+            }
+
+            .status-sep {
+                color: var(--border2);
+            }
+
+            /* ── Mobile ────────────────────────────────── */
+            .mob-tabs {
+                display: none;
+                border-bottom: 1px solid var(--border);
+                background: var(--surface);
+            }
+
+            .mob-tab {
+                flex: 1;
+                height: 40px;
+                border: none;
+                background: none;
+                font-family: "Syne", sans-serif;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+                cursor: pointer;
+                border-bottom: 2px solid transparent;
+                transition:
+                    color 0.15s,
+                    border-color 0.15s;
+            }
+
+            .mob-tab.active {
+                color: var(--text);
+                border-bottom-color: var(--indigo);
+            }
+
+            @media (max-width: 700px) {
+                body::before {
+                    display: none;
+                }
+
+                .main {
+                    grid-template-columns: 1fr;
+                    height: auto;
+                    min-height: calc(100vh - 56px);
+                }
+
+                .mob-tabs {
+                    display: flex;
+                }
+
+                .sidebar {
+                    border-right: none;
+                    border-bottom: 1px solid var(--border);
+                    height: auto;
+                    display: none;
+                }
+
+                .sidebar.mob-visible {
+                    display: flex;
+                    max-height: 55vh;
+                }
+
+                .feed-panel {
+                    display: none;
+                    min-height: 50vh;
+                }
+                .feed-panel.mob-visible {
+                    display: flex;
+                }
+
+                .address-list {
+                    max-height: 200px;
+                }
+
+                .deposit-entry {
+                    grid-template-columns: auto 1fr;
+                    grid-template-rows: auto auto;
+                }
+
+                .deposit-time {
+                    grid-column: 2;
+                    text-align: left;
+                }
+
+                header {
+                    padding: 0 14px;
+                }
+                .live-status .live-label {
+                    display: none;
+                }
+            }
+
+            /* ── Scrollbar ────────────────────────────────── */
+            ::-webkit-scrollbar {
+                width: 5px;
+                height: 5px;
+            }
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: var(--border2);
+                border-radius: 3px;
+            }
+        </style>
+    </head>
+    <body data-theme="dark">
+        <div class="app">
+            <header>
+                <a class="logo" href="#">
+                    <div class="logo-icon">
+                        <svg
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                d="M3 8L8 3L13 8L8 13L3 8Z"
+                                fill="#0a0500"
+                                stroke="#0a0500"
+                                stroke-width="0.5"
+                            />
+                            <circle cx="8" cy="8" r="2" fill="#0a0500" />
+                        </svg>
+                    </div>
+                    Rustplorer
+                </a>
+                <div class="live-status">
+                    <div class="live-dot" id="live-dot"></div>
+                    <span class="live-label" id="live-label">Live</span>
+                </div>
+                <div class="spacer"></div>
+                <div class="header-actions">
+                    <button
+                        class="btn btn-icon"
+                        id="theme-btn"
+                        title="Toggle theme"
+                    >
+                        <svg
+                            id="theme-icon"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <circle cx="12" cy="12" r="5" />
+                            <path
+                                d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+                            />
+                        </svg>
+                    </button>
+                    <button class="btn btn-primary" id="add-btn">
+                        <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                            stroke-linecap="round"
+                        >
+                            <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        Add Address
+                    </button>
+                </div>
+            </header>
+
+            <div class="mob-tabs">
+                <button class="mob-tab active" data-panel="sidebar">
+                    Addresses
+                </button>
+                <button class="mob-tab" data-panel="feed">Activity</button>
             </div>
-            <div class="card-body"></div>
-        `;
 
-        div.querySelector('.delete-btn').addEventListener('click', () => deleteAddress(addr));
-        listEl.appendChild(div);
-    }
+            <div class="main">
+                <aside class="sidebar mob-visible">
+                    <div class="panel-header">
+                        <span class="panel-label">Tracked</span>
+                        <span class="panel-count" id="addr-count">0</span>
+                    </div>
+                    <div class="address-list" id="addr-list">
+                        <div class="empty-state" id="addr-empty">
+                            <svg
+                                width="40"
+                                height="40"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <rect
+                                    x="3"
+                                    y="3"
+                                    width="18"
+                                    height="18"
+                                    rx="3"
+                                />
+                                <path d="M9 9h6M9 12h6M9 15h4" />
+                            </svg>
+                            <span class="empty-state-title"
+                                >No addresses yet</span
+                            >
+                            <span class="empty-state-sub"
+                                >Add an address to start tracking incoming
+                                deposits</span
+                            >
+                        </div>
+                    </div>
+                    <div class="sidebar-footer">
+                        <button
+                            class="btn"
+                            id="add-btn-2"
+                            style="width: 100%; justify-content: center"
+                        >
+                            <svg
+                                width="11"
+                                height="11"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="3"
+                                stroke-linecap="round"
+                            >
+                                <path d="M12 5v14M5 12h14" />
+                            </svg>
+                            Track new address
+                        </button>
+                    </div>
+                </aside>
 
-    async function deleteAddress(address) {
-        if(!confirm("Stop tracking this address?")) return;
-        await fetch(`${API_BASE}/addresses`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address })
-        });
-        
-        const card = document.querySelector(`[data-address="${address}"]`);
-        if (card) card.remove();
-        currentAddresses = currentAddresses.filter(a => a !== address);
-    }
+                <div class="feed-panel">
+                    <div class="panel-header">
+                        <span class="panel-label">Activity Feed</span>
+                        <span class="panel-count" id="feed-count">0</span>
+                    </div>
+                    <div class="feed-list" id="feed-list">
+                        <div class="empty-state" id="feed-empty">
+                            <svg
+                                width="40"
+                                height="40"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <path d="M12 22V12M12 12L8 16M12 12L16 16" />
+                                <path d="M20 16.7A8 8 0 1 0 9 20.9" />
+                            </svg>
+                            <span class="empty-state-title"
+                                >Watching for deposits</span
+                            >
+                            <span class="empty-state-sub"
+                                >Incoming transfers to your tracked addresses
+                                will appear here</span
+                            >
+                        </div>
+                    </div>
+                    <div class="status-bar">
+                        <span id="status-text">Connecting…</span>
+                        <span class="status-sep">·</span>
+                        <span id="poll-text">Polls every 5s</span>
+                        <span class="status-sep">·</span>
+                        <span id="deposit-total">0 deposits seen</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-    document.getElementById('save-btn').addEventListener('click', async () => {
-        const address = inputEl.value.trim();
-        if (!address) return;
-        
-        await fetch(`${API_BASE}/addresses`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address })
-        });
-        
-        modal.classList.remove('active');
-        inputEl.value = '';
-        fetchAddresses();
-    });
+        <!-- Modal -->
+        <div class="modal-bg" id="modal">
+            <div class="modal">
+                <div class="modal-title">Track address</div>
+                <div class="modal-sub">
+                    Paste any EVM, Solana, or Bitcoin address to start
+                    monitoring
+                </div>
+                <div class="input-wrap">
+                    <input
+                        type="text"
+                        id="addr-input"
+                        placeholder="0x… · Sol… · bc1…"
+                        autocomplete="off"
+                        spellcheck="false"
+                    />
+                    <button class="input-clear" id="input-clear">×</button>
+                </div>
+                <div class="chain-hint">
+                    <span class="chain-tag">Ethereum</span>
+                    <span class="chain-tag">Base</span>
+                    <span class="chain-tag">Polygon</span>
+                    <span class="chain-tag">Arbitrum</span>
+                    <span class="chain-tag">Optimism</span>
+                    <span class="chain-tag">Solana</span>
+                    <span class="chain-tag">Bitcoin</span>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn" id="cancel-btn">Cancel</button>
+                    <button class="btn btn-primary" id="save-btn">
+                        Start tracking
+                    </button>
+                </div>
+            </div>
+        </div>
 
-    async function pollDeposits() {
-        try {
-            const res = await fetch(`${API_BASE}/deposits`);
-            if(!res.ok) return;
-            const deposits = await res.json();
-            
-            deposits.forEach(d => {
-                if (!seenTxHashes.has(d.tx_hash)) {
-                    seenTxHashes.add(d.tx_hash);
-                    
-                    const targetAddr = currentAddresses.find(a => a.toLowerCase() === d.to_address.toLowerCase());
-                    
-                    if (targetAddr) {
-                        const card = document.querySelector(`[data-address="${targetAddr}"]`);
-                        if (card) {
-                            listEl.prepend(card);
-                            
-                            card.classList.remove('highlight');
-                            void card.offsetWidth;
-                            card.classList.add('highlight');
-                            
-                            const body = card.querySelector('.card-body');
-                            body.classList.add('has-data');
-                            
-                            const row = document.createElement('div');
-                            row.className = 'deposit-row';
-                            row.innerHTML = `
-                                <div class="deposit-amount">&darr; +${d.amount_clean} ${d.token}</div>
-                                <div class="deposit-meta">
-                                    <span class="badge">${formatChain(d.chain)}</span>
-                                    <span>From: <span class="mono">${truncate(d.from_address, 6)}</span></span>
-                                    <span>&middot;</span>
-                                    <span>Tx: <span class="mono">${truncate(d.tx_hash, 6)}</span></span>
-                                </div>
-                            `;
-                            
-                            body.prepend(row);
-                        }
+        <div class="toast" id="toast">Copied!</div>
+
+        <script>
+            const API_BASE = "";
+
+            const CHAIN_INFO = {
+                "eip155:1": {
+                    name: "Ethereum",
+                    color: "#627eea",
+                    bg: "rgba(98,126,234,0.15)",
+                },
+                "eip155:8453": {
+                    name: "Base",
+                    color: "#2151f5",
+                    bg: "rgba(33,81,245,0.15)",
+                },
+                "eip155:137": {
+                    name: "Polygon",
+                    color: "#8247e5",
+                    bg: "rgba(130,71,229,0.15)",
+                },
+                "eip155:42161": {
+                    name: "Arbitrum",
+                    color: "#28a0f0",
+                    bg: "rgba(40,160,240,0.15)",
+                },
+                "eip155:10": {
+                    name: "Optimism",
+                    color: "#ff0420",
+                    bg: "rgba(255,4,32,0.15)",
+                },
+                "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": {
+                    name: "Solana",
+                    color: "#9945ff",
+                    bg: "rgba(153,69,255,0.15)",
+                },
+                "bip122:000000000019d6689c085ae165831e93": {
+                    name: "Bitcoin",
+                    color: "#f7931a",
+                    bg: "rgba(247,147,26,0.15)",
+                },
+            };
+
+            function chainInfo(caip2) {
+                return (
+                    CHAIN_INFO[caip2] || {
+                        name: caip2.split(":")[0],
+                        color: "#888",
+                        bg: "rgba(128,128,128,0.1)",
                     }
-                }
-            });
-        } catch (e) { console.error("Polling failed", e); }
-    }
+                );
+            }
 
-    fetchAddresses().then(() => {
-        setInterval(pollDeposits, 5000);
-        pollDeposits();
-    });
-</script>
-</body>
+            function trunc(str, n = 6) {
+                if (!str || str.length <= n * 2 + 3) return str;
+                return str.slice(0, n) + "…" + str.slice(-n);
+            }
+
+            function timeAgo(ts) {
+                if (!ts) return "just now";
+                const diff = Date.now() - ts;
+                if (diff < 60000) return "just now";
+                if (diff < 3600000) return Math.floor(diff / 60000) + "m ago";
+                if (diff < 86400000)
+                    return Math.floor(diff / 3600000) + "h ago";
+                return Math.floor(diff / 86400000) + "d ago";
+            }
+
+            function initials(addr) {
+                if (!addr) return "?";
+                return addr.replace(/^0x/i, "").slice(0, 2).toUpperCase();
+            }
+
+            const seenHashes = new Set();
+            let addresses = [];
+            const depositCounts = {};
+            const depositTimes = {};
+            let totalDeposits = 0;
+
+            const addrList = document.getElementById("addr-list");
+            const addrEmpty = document.getElementById("addr-empty");
+            const feedList = document.getElementById("feed-list");
+            const feedEmpty = document.getElementById("feed-empty");
+            const addrCount = document.getElementById("addr-count");
+            const feedCount = document.getElementById("feed-count");
+            const liveDot = document.getElementById("live-dot");
+            const liveLabel = document.getElementById("live-label");
+            const statusText = document.getElementById("status-text");
+            const pollText = document.getElementById("poll-text");
+            const depTotal = document.getElementById("deposit-total");
+            const modal = document.getElementById("modal");
+            const addrInput = document.getElementById("addr-input");
+            const toast = document.getElementById("toast");
+
+            // Theme
+            let theme = localStorage.getItem("rp-theme") || "dark";
+            document.body.dataset.theme = theme;
+            updateThemeIcon();
+
+            document
+                .getElementById("theme-btn")
+                .addEventListener("click", () => {
+                    theme = theme === "dark" ? "light" : "dark";
+                    document.body.dataset.theme = theme;
+                    localStorage.setItem("rp-theme", theme);
+                    updateThemeIcon();
+                });
+
+            function updateThemeIcon() {
+                const icon = document.getElementById("theme-icon");
+                if (theme === "dark") {
+                    icon.innerHTML =
+                        '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+                } else {
+                    icon.innerHTML =
+                        '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
+                }
+            }
+
+            // Toast
+            function showToast(msg) {
+                toast.textContent = msg;
+                toast.classList.add("show");
+                setTimeout(() => toast.classList.remove("show"), 1800);
+            }
+
+            // Copy
+            function copyAddr(addr) {
+                navigator.clipboard
+                    .writeText(addr)
+                    .then(() => showToast("Copied!"));
+            }
+
+            // Modal
+            function openModal() {
+                modal.classList.add("open");
+                setTimeout(() => addrInput.focus(), 50);
+            }
+            function closeModal() {
+                modal.classList.remove("open");
+                addrInput.value = "";
+            }
+
+            document
+                .getElementById("add-btn")
+                .addEventListener("click", openModal);
+            document
+                .getElementById("add-btn-2")
+                .addEventListener("click", openModal);
+            document
+                .getElementById("cancel-btn")
+                .addEventListener("click", closeModal);
+            document
+                .getElementById("input-clear")
+                .addEventListener("click", () => {
+                    addrInput.value = "";
+                    addrInput.focus();
+                });
+            modal.addEventListener("click", (e) => {
+                if (e.target === modal) closeModal();
+            });
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") closeModal();
+            });
+
+            document
+                .getElementById("save-btn")
+                .addEventListener("click", async () => {
+                    const addr = addrInput.value.trim();
+                    if (!addr) {
+                        addrInput.focus();
+                        return;
+                    }
+                    try {
+                        await fetch(`${API_BASE}/addresses`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ address: addr }),
+                        });
+                        closeModal();
+                        fetchAddresses();
+                    } catch (e) {
+                        showToast("Failed to add address");
+                    }
+                });
+
+            addrInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter")
+                    document.getElementById("save-btn").click();
+            });
+
+            // Address card
+            function createAddrCard(addr) {
+                const card = document.createElement("div");
+                card.className = "addr-card";
+                card.dataset.address = addr;
+                depositCounts[addr] = depositCounts[addr] || 0;
+
+                const count = depositCounts[addr];
+                card.innerHTML = `
+    <div class="addr-avatar">${initials(addr)}</div>
+    <div class="addr-info">
+      <span class="addr-hash" title="${addr}">${trunc(addr, 8)}</span>
+      <span class="addr-meta">${count ? count + " deposit" + (count !== 1 ? "s" : "") : "Watching…"}</span>
+    </div>
+    <span class="addr-badge" data-count="${count}">${count || "—"}</span>
+    <button class="addr-del" title="Stop tracking">×</button>
+  `;
+
+                card.querySelector(".addr-del").addEventListener(
+                    "click",
+                    (e) => {
+                        e.stopPropagation();
+                        deleteAddr(addr);
+                    },
+                );
+
+                card.addEventListener("click", (e) => {
+                    if (e.target.classList.contains("addr-del")) return;
+                    copyAddr(addr);
+                    showToast("Address copied");
+                });
+
+                addrList.appendChild(card);
+            }
+
+            function updateAddrCard(addr) {
+                const card = document.querySelector(
+                    `.addr-card[data-address="${addr}"]`,
+                );
+                if (!card) return;
+                const count = depositCounts[addr] || 0;
+                const badge = card.querySelector(".addr-badge");
+                const meta = card.querySelector(".addr-meta");
+                badge.textContent = count || "—";
+                badge.dataset.count = count;
+                meta.textContent = count
+                    ? count +
+                      " deposit" +
+                      (count !== 1 ? "s" : "") +
+                      (depositTimes[addr]
+                          ? " · " + timeAgo(depositTimes[addr])
+                          : "")
+                    : "Watching…";
+            }
+
+            async function deleteAddr(addr) {
+                if (!confirm("Stop tracking this address?")) return;
+                try {
+                    await fetch(`${API_BASE}/addresses`, {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ address: addr }),
+                    });
+                    document
+                        .querySelector(`.addr-card[data-address="${addr}"]`)
+                        ?.remove();
+                    addresses = addresses.filter((a) => a !== addr);
+                    updateCounts();
+                } catch (e) {
+                    showToast("Failed to remove");
+                }
+            }
+
+            function updateCounts() {
+                addrCount.textContent = addresses.length;
+                addrEmpty.style.display = addresses.length ? "none" : "flex";
+            }
+
+            async function fetchAddresses() {
+                try {
+                    const res = await fetch(`${API_BASE}/addresses`);
+                    const data = await res.json();
+
+                    // add new
+                    data.forEach((addr) => {
+                        if (!addresses.includes(addr)) {
+                            addresses.push(addr);
+                            if (addrEmpty) addrEmpty.style.display = "none";
+                            createAddrCard(addr);
+                        }
+                    });
+
+                    // remove stale
+                    addresses = addresses.filter((addr) => {
+                        if (!data.includes(addr)) {
+                            document
+                                .querySelector(
+                                    `.addr-card[data-address="${addr}"]`,
+                                )
+                                ?.remove();
+                            return false;
+                        }
+                        return true;
+                    });
+
+                    updateCounts();
+                } catch (e) {
+                    setStatus("error");
+                }
+            }
+
+            // Deposit entry
+            function addDeposit(d) {
+                const chain = chainInfo(d.chain);
+                const entry = document.createElement("div");
+                entry.className = "deposit-entry new";
+                entry.dataset.hash = d.tx_hash;
+
+                const now = Date.now();
+
+                entry.innerHTML = `
+    <div class="deposit-arrow">↓</div>
+    <div class="deposit-body">
+      <div class="deposit-amount">+${d.amount_clean}<span>${d.token}</span></div>
+      <div class="deposit-details">
+        <span class="chain-pill" style="background:${chain.bg};color:${chain.color}">
+          <span class="chain-dot" style="background:${chain.color}"></span>
+          ${chain.name}
+        </span>
+        <span class="deposit-addr">From: <strong>${trunc(d.from_address, 6)}</strong></span>
+        <span class="deposit-addr">→ <strong>${trunc(d.to_address, 6)}</strong></span>
+        <span class="tx-chip">Tx: ${trunc(d.tx_hash, 8)}</span>
+      </div>
+    </div>
+    <div class="deposit-time" data-ts="${now}">just now</div>
+  `;
+
+                feedList.prepend(entry);
+                if (feedEmpty) feedEmpty.style.display = "none";
+
+                // dim the glow after a moment
+                setTimeout(() => entry.classList.remove("new"), 3000);
+            }
+
+            // Polling
+            let pollCount = 0;
+            let lastPoll = null;
+
+            function setStatus(state) {
+                if (state === "ok") {
+                    liveDot.className = "live-dot";
+                    liveLabel.textContent = "Live";
+                    statusText.textContent = "Connected";
+                } else if (state === "error") {
+                    liveDot.className = "live-dot error";
+                    liveLabel.textContent = "Error";
+                    statusText.textContent = "Connection error";
+                }
+            }
+
+            async function pollDeposits() {
+                try {
+                    const res = await fetch(`${API_BASE}/deposits`);
+                    if (!res.ok) {
+                        setStatus("error");
+                        return;
+                    }
+                    const deposits = await res.json();
+                    setStatus("ok");
+                    lastPoll = Date.now();
+
+                    let added = 0;
+                    deposits.forEach((d) => {
+                        if (seenHashes.has(d.tx_hash)) return;
+                        seenHashes.add(d.tx_hash);
+                        totalDeposits++;
+                        added++;
+
+                        // find matching address (case-insensitive)
+                        const targetAddr = addresses.find(
+                            (a) =>
+                                a.toLowerCase() === d.to_address.toLowerCase(),
+                        );
+                        if (targetAddr) {
+                            depositCounts[targetAddr] =
+                                (depositCounts[targetAddr] || 0) + 1;
+                            depositTimes[targetAddr] = Date.now();
+                            updateAddrCard(targetAddr);
+
+                            // flash card and move to top
+                            const card = document.querySelector(
+                                `.addr-card[data-address="${targetAddr}"]`,
+                            );
+                            if (card) {
+                                card.classList.remove("new-flash");
+                                void card.offsetWidth;
+                                card.classList.add("new-flash");
+                                addrList.prepend(card);
+                            }
+                        }
+
+                        addDeposit(d);
+                    });
+
+                    feedCount.textContent = totalDeposits;
+                    depTotal.textContent =
+                        totalDeposits +
+                        " deposit" +
+                        (totalDeposits !== 1 ? "s" : "") +
+                        " seen";
+                    pollCount++;
+                    pollText.textContent = `Poll #${pollCount}`;
+                } catch (e) {
+                    setStatus("error");
+                }
+            }
+
+            // Relative time ticker
+            setInterval(() => {
+                document
+                    .querySelectorAll(".deposit-time[data-ts]")
+                    .forEach((el) => {
+                        el.textContent = timeAgo(parseInt(el.dataset.ts));
+                    });
+                addresses.forEach((addr) => updateAddrCard(addr));
+            }, 30000);
+
+            // Mobile tabs
+            document.querySelectorAll(".mob-tab").forEach((tab) => {
+                tab.addEventListener("click", () => {
+                    document
+                        .querySelectorAll(".mob-tab")
+                        .forEach((t) => t.classList.remove("active"));
+                    tab.classList.add("active");
+                    const panel = tab.dataset.panel;
+                    document
+                        .querySelector(".sidebar")
+                        .classList.toggle("mob-visible", panel === "sidebar");
+                    document
+                        .querySelector(".feed-panel")
+                        .classList.toggle("mob-visible", panel === "feed");
+                });
+            });
+
+            // Init
+            fetchAddresses().then(() => {
+                pollDeposits();
+                setInterval(pollDeposits, 5000);
+            });
+        </script>
+    </body>
 </html>

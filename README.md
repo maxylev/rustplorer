@@ -548,7 +548,7 @@ The E2E tests perform real transfers on local chains:
 ### Chain (`[[chains]]`)
 
 | Field | Type | Required | Description |
-|---|---|---|---|---|
+|---|---|---|---|
 | `caip2` | string | yes | CAIP-2 chain ID (e.g. `eip155:1`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `bip122:000000000019d6689c085ae165831e93`) |
 | `rpc` | string[] | yes | One or more public RPC URLs |
 | `start_block` | uint64 | no | First block/slot (defaults to `end_block - lookback`) |
