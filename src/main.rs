@@ -142,6 +142,7 @@ async fn run_watch_mode(args: CliArgs) -> Result<(), Box<dyn std::error::Error +
                 .await
                 .unwrap();
             eprintln!("[rustplorer] Address API listening on port {}", port);
+            eprintln!("[rustplorer] Dashboard: http://localhost:{}/", port);
             axum::serve(listener, app).await.unwrap();
         });
     }

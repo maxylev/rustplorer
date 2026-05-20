@@ -118,16 +118,19 @@ Both `start_block` and `end_block` are optional. If omitted, the latest block is
 [[chains]]
 caip2 = "eip155:1"
 rpc = [
-    "https://eth.llamarpc.com",
-    "https://rpc.ankr.com/eth",
-    "https://cloudflare-eth.com",
+    "https://ethereum.publicnode.com",
+    "https://eth.drpc.org",
+    "https://1rpc.io/eth",
 ]
 start_block = 19000000
 end_block = 19000500
 
 [[chains]]
 caip2 = "eip155:8453"
-rpc = ["https://mainnet.base.org"]
+rpc = [
+    "https://base.publicnode.com",
+    "https://base.drpc.org",
+]
 start_block = 12000000
 end_block = 12000500
 
