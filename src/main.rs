@@ -107,7 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         return Ok(());
     }
 
-    if args.watch {
+    if args.watch || args.api_port.is_some() {
         run_watch_mode(args).await
     } else {
         run_single(args).await
