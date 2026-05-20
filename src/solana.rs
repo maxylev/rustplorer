@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 
 const SOL_DECIMALS: u32 = 9;
 const DEFAULT_RPC_DELAY_MS: u64 = 200;
-const DEFAULT_MAX_CONCURRENT: usize = 5;
+const DEFAULT_MAX_CONCURRENT: usize = 1;
 
 pub struct SolanaScanner {
     pub rpc_urls: Vec<String>,

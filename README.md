@@ -132,21 +132,18 @@ start_block = 12000000
 end_block = 12000500
 
 # Omit both start_block and end_block → scans last 1,000 blocks (EVM) / 500 slots (Solana) / 6 blocks (Bitcoin)
-[[chains]]
-caip2 = "eip155:137"
-rpc = ["https://polygon-rpc.com"]
-
-# Omit only end_block → scans from start_block to the node's latest block
-[[chains]]
-caip2 = "eip155:8453"
-rpc = ["https://mainnet.base.org"]
-start_block = 12000000
+# NOTE: Public Ethereum RPCs usually work. Polygon public RPCs often require API keys.
+# [[chains]]
+# caip2 = "eip155:137"
+# rpc = ["https://polygon-rpc.com"]
 
 [[chains]]
 caip2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 rpc = ["https://api.mainnet-beta.solana.com"]
 start_block = 250000000
 end_block = 250000100
+max_concurrent = 1
+rpc_delay_ms = 500
 
 [[chains]]
 caip2 = "bip122:000000000019d6689c085ae165831e93"
