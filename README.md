@@ -1,5 +1,7 @@
 <h1 align="center">rustplorer</h1>
 
+<img src="https://raw.githubusercontent.com/maxylev/rustplorer/refs/heads/main/banner.png" alt="rustplorer">
+
 <p align="center">
   <strong>High-performance multi-chain deposit detector for EVM, Solana, and Bitcoin blockchains.</strong><br>
   Monitors up to 1 million addresses using <strong>only public RPC endpoints</strong> — no API keys, no third-party services.
