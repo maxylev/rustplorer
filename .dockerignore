@@ -9,3 +9,5 @@ config/
 .vscode/
 .git/
 combicode.txt
+.agents/
+skills-lock.json

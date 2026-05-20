@@ -10,3 +10,5 @@ test-ledger/
 config/
 .idea/
 .vscode/
+.agents/
+skills-lock.json

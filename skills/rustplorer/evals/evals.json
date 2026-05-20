@@ -1,0 +1,29 @@
+{
+  "skill_name": "rustplorer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to monitor a few Ethereum addresses for incoming USDC and ETH deposits. I've never used rustplorer before. I have Rust installed via rustup. My addresses are 0x71C7656EC7ab88b098defB751B7401B5f6d8976F and 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045. I want to scan the last 500 blocks on Ethereum mainnet and save the results as JSON. Walk me through what I need to do step by step.",
+      "expected_output": "A step-by-step guide including: installing rustplorer, creating Config.toml with Ethereum chain config and ETH+USDC assets, creating addresses.txt with the two addresses, running the scan, and saving to JSON. The Config.toml should use proper CAIP-2 ID (eip155:1), correct USDC contract address on Ethereum mainnet (0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48), and the addresses file should have both addresses.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I'm running rustplorer in watch mode on Base chain but I'm getting a lot of '429 Too Many Requests' errors from the RPC. My Config.toml only has one RPC endpoint for Base: https://mainnet.base.org. What should I do to fix this and make it more reliable? Also, can I monitor ERC-20 tokens on Base? I want to track USDC on Base (the contract is 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913).",
+      "expected_output": "Explanation of rustplorer's multi-RPC failover, recommended additional Base RPC endpoints (like https://base.llamarpc.com, https://base-rpc.publicnode.com), and how to add a USDC_BASE asset config. Should mention that rate limiting is expected on free endpoints and rustplorer automatically tries next endpoints.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I want to run rustplorer as a long-running service that monitors deposits 24/7. I need it to poll every 30 seconds, save results to a file that grows over time, and I also need to be able to add and remove addresses without restarting the service. I'm using Docker. What's the best setup for this?",
+      "expected_output": "A Docker-based daemon setup using --watch --interval 30 with --api-port for dynamic address management. Should include: docker run command with proper volume mounts for Config.toml and addresses.txt, port mapping for the API, output to a JSON Lines file (.jsonl), and example curl commands for adding/removing addresses via the HTTP API. Should mention hot-reloading as an alternative to the API.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "hey i'm trying to add solana to my rustplorer setup. i already have ethereum working and have this Config.toml that scans ETH mainnet. i need to also watch some solana addresses for SOL and USDC deposits. what's the CAIP-2 for solana mainnet? and what's the USDC contract address on solana? my solana address i want to track is AMYmXa54xZuS7rjeSX7E4YwNVKpNbhFHK9gP7jLCN3A",
+      "expected_output": "Correct Solana mainnet CAIP-2 ID (solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp), USDC SPL token contract address on Solana (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v), SOL native asset config with 9 decimals, example Solana RPC endpoints, and how to add the Solana chain entry and assets to an existing Config.toml.",
+      "files": []
+    }
+  ]
+}
