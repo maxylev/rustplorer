@@ -242,7 +242,7 @@ rustplorer -a addresses.txt --watch --interval 30 --api-port 3000
 Start an HTTP server to manage target addresses dynamically and visualize deposits:
 
 ```bash
-rustplorer -a addresses.txt --api-port 3000 -o deposits.jsonl
+rustplorer -a addresses.txt --watch --api-port 3000 -o deposits.jsonl
 ```
 
 Open `http://localhost:3000` in your browser for the real-time deposit dashboard with dark/light theme, address management, and live deposit ledger.
