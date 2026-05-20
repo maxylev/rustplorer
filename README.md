@@ -18,17 +18,20 @@
 - **Multi-chain**: Ethereum, Base, Polygon, BSC, Arbitrum, and any EVM chain + Solana + **Bitcoin**
 - **Multi-token**: Native tokens (ETH, MATIC, SOL, BTC) + ERC-20 / SPL tokens
 - **No API keys**: Works with any public JSON-RPC endpoint
-- **Multi-RPC failover**: Automatically retries on the next endpoint if one fails or rate-limits
+- **Multi-RPC failover**: Exponential backoff retry across endpoints with configurable delays
 - **1M+ addresses**: Loads addresses into an in-memory `HashSet` for O(1) matching
-- **Human-readable output**: Converts raw hex/lamport/satoshi values to decimal strings
+- **Human-readable output**: Converts raw hex/lamport/satoshi values to decimal strings (U256-safe via `BigUint`)
+- **Transaction hashes**: Every detected deposit includes the `tx_hash` for traceability
+- **Concurrent RPC**: Fetches blocks in parallel via `buffer_unordered` with configurable concurrency
+- **Web dashboard**: Real-time deposit ledger UI at `http://localhost:PORT` with dark/light theme
 - **Dual use**: CLI binary and Rust library crate
 - **Extensible**: Modular architecture with EVM, Solana, Bitcoin scanners — add any chain by implementing a scanner
 - **Optional block range**: Omit `start_block`/`end_block` to auto-detect from the node
 - **Daemon mode**: Run continuously with configurable polling interval (`--watch`)
 - **Hot-reloading**: Address file is re-read each interval — edit, add, or remove addresses at runtime
-- **HTTP API**: Manage target addresses via REST endpoints (`--api-port`)
+- **HTTP API**: Manage target addresses and query deposits via REST endpoints (`--api-port`)
 - **CLI address management**: Add or remove addresses directly from the command line
-- **Docker & GHCR**: Pre-built image available at `ghcr.io/maxylev/rustplorer:latest` — or build locally with `docker build -t rustplorer .`
+- **Docker & GHCR**: Pre-built image available at `ghcr.io/maxylev/rustplorer:latest`
 
 ## Architecture
 
@@ -102,7 +105,7 @@ cargo install --path .
 
 ```toml
 [dependencies]
-rustplorer = "0.4"
+rustplorer = "0.5.1"
 ```
 
 ## Quick Start
