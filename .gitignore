@@ -11,4 +11,5 @@ config/
 .idea/
 .vscode/
 .agents/
+.opencode/
 skills-lock.json

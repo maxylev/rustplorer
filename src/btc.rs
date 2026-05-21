@@ -38,11 +38,11 @@ impl BtcScanner {
         });
         let res = execute_rpc(client, rpc_urls, &payload).await?;
 
-        if let Some(error) = res.get("error") {
-            if !error.is_null() {
-                let msg = error["message"].as_str().unwrap_or("Unknown RPC error");
-                anyhow::bail!("RPC error in getblockcount: {}", msg);
-            }
+        if let Some(error) = res.get("error")
+            && !error.is_null()
+        {
+            let msg = error["message"].as_str().unwrap_or("Unknown RPC error");
+            anyhow::bail!("RPC error in getblockcount: {}", msg);
         }
 
         res["result"]
@@ -160,45 +160,43 @@ async fn process_transaction_static(
     let tx_hash = txn["txid"].as_str().unwrap_or("unknown").to_string();
 
     let mut from_address = "unknown".to_string();
-    if let Some(vins) = txn["vin"].as_array() {
-        if let Some(first_vin) = vins.first() {
-            if let Some(prevout) = first_vin.get("prevout") {
-                if let Some(addr) = extract_btc_address(prevout) {
-                    from_address = addr;
-                }
-            }
-        }
+    if let Some(vins) = txn["vin"].as_array()
+        && let Some(first_vin) = vins.first()
+        && let Some(prevout) = first_vin.get("prevout")
+        && let Some(addr) = extract_btc_address(prevout)
+    {
+        from_address = addr;
     }
 
     for vout in vouts {
-        if let Some(to_address) = extract_btc_address(vout) {
-            if targets.contains(&to_address) {
-                // 2026 Best Practice: Extract the exact string representation from
-                // serde_json (with arbitrary_precision enabled), completely bypassing
-                // IEEE-754 floating-point math. This prevents precision loss for
-                // high-value Bitcoin transactions.
-                let exact_val_str = vout["value"]
-                    .as_number()
-                    .map(|n| n.to_string())
-                    .unwrap_or_else(|| "0".to_string());
+        if let Some(to_address) = extract_btc_address(vout)
+            && targets.contains(&to_address)
+        {
+            // 2026 Best Practice: Extract the exact string representation from
+            // serde_json (with arbitrary_precision enabled), completely bypassing
+            // IEEE-754 floating-point math. This prevents precision loss for
+            // high-value Bitcoin transactions.
+            let exact_val_str = vout["value"]
+                .as_number()
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "0".to_string());
 
-                let decimal_val = Decimal::from_str(&exact_val_str).unwrap_or_default();
-                let sats_decimal = decimal_val * Decimal::new(100_000_000, 0);
-                let raw_amount = sats_decimal.trunc().to_string();
+            let decimal_val = Decimal::from_str(&exact_val_str).unwrap_or_default();
+            let sats_decimal = decimal_val * Decimal::new(100_000_000, 0);
+            let raw_amount = sats_decimal.trunc().to_string();
 
-                let _ = tx
-                    .send(DepositResult {
-                        chain: name.to_string(),
-                        asset: "Native".to_string(),
-                        from_address: from_address.clone(),
-                        to_address,
-                        amount_raw: raw_amount.clone(),
-                        amount_clean: format_to_human(&raw_amount, BTC_DECIMALS),
-                        block_number: block_num,
-                        tx_hash: tx_hash.clone(),
-                    })
-                    .await;
-            }
+            let _ = tx
+                .send(DepositResult {
+                    chain: name.to_string(),
+                    asset: "Native".to_string(),
+                    from_address: from_address.clone(),
+                    to_address,
+                    amount_raw: raw_amount.clone(),
+                    amount_clean: format_to_human(&raw_amount, BTC_DECIMALS),
+                    block_number: block_num,
+                    tx_hash: tx_hash.clone(),
+                })
+                .await;
         }
     }
 }
@@ -208,10 +206,10 @@ fn extract_btc_address(out: &serde_json::Value) -> Option<String> {
     if let Some(addr) = spk.get("address").and_then(|a| a.as_str()) {
         return Some(addr.to_string());
     }
-    if let Some(addrs) = spk.get("addresses").and_then(|a| a.as_array()) {
-        if let Some(addr) = addrs.first().and_then(|a| a.as_str()) {
-            return Some(addr.to_string());
-        }
+    if let Some(addrs) = spk.get("addresses").and_then(|a| a.as_array())
+        && let Some(addr) = addrs.first().and_then(|a| a.as_str())
+    {
+        return Some(addr.to_string());
     }
     None
 }

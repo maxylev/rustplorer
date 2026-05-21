@@ -469,10 +469,10 @@ async fn run_single(args: CliArgs) -> Result<()> {
 
 fn apply_overrides(config: &mut AppConfig, args: &CliArgs) {
     for chain in config.chains.values_mut() {
-        if let Some(ref target_net) = args.network {
-            if chain.caip2 != *target_net {
-                continue;
-            }
+        if let Some(ref target_net) = args.network
+            && chain.caip2 != *target_net
+        {
+            continue;
         }
 
         if let Some(sb) = args.start_block {
@@ -702,30 +702,26 @@ fn manage_assets_cli(path: &PathBuf, input: &str, add: bool) -> Result<()> {
         }
         let (chain_name, asset_name) = (parts[0], parts[1]);
 
-        if let Some(chains_table) = doc.get_mut("chains").and_then(|i| i.as_table_mut()) {
-            if let Some(chain_table) = chains_table
+        if let Some(chains_table) = doc.get_mut("chains").and_then(|i| i.as_table_mut())
+            && let Some(chain_table) = chains_table
                 .get_mut(chain_name)
                 .and_then(|i| i.as_table_mut())
-            {
-                if let Some(assets_table) =
-                    chain_table.get_mut("assets").and_then(|i| i.as_table_mut())
-                {
-                    if assets_table.remove(asset_name).is_some() {
-                        tracing::info!(
-                            "Removed asset '{}' from chain '{}' in {:?}",
-                            asset_name,
-                            chain_name,
-                            path
-                        );
-                    } else {
-                        tracing::warn!(
-                            "Asset '{}' not found in chain '{}' in {:?}",
-                            asset_name,
-                            chain_name,
-                            path
-                        );
-                    }
-                }
+            && let Some(assets_table) = chain_table.get_mut("assets").and_then(|i| i.as_table_mut())
+        {
+            if assets_table.remove(asset_name).is_some() {
+                tracing::info!(
+                    "Removed asset '{}' from chain '{}' in {:?}",
+                    asset_name,
+                    chain_name,
+                    path
+                );
+            } else {
+                tracing::warn!(
+                    "Asset '{}' not found in chain '{}' in {:?}",
+                    asset_name,
+                    chain_name,
+                    path
+                );
             }
         }
     }
@@ -842,13 +838,13 @@ async fn api_add_chain(
     };
 
     // Check if chain already exists
-    if let Some(chains) = doc.get("chains").and_then(|i| i.as_table()) {
-        if chains.contains_key(&payload.name) {
-            return Err(ApiErrors::conflict(format!(
-                "chain already exists: {}",
-                payload.name
-            )));
-        }
+    if let Some(chains) = doc.get("chains").and_then(|i| i.as_table())
+        && chains.contains_key(&payload.name)
+    {
+        return Err(ApiErrors::conflict(format!(
+            "chain already exists: {}",
+            payload.name
+        )));
     }
 
     let mut new_chain = Table::new();
@@ -905,16 +901,16 @@ async fn api_remove_chain(
         }
     };
 
-    if let Some(chains) = doc.get_mut("chains").and_then(|i| i.as_table_mut()) {
-        if chains.remove(&name).is_some() {
-            let remaining: Vec<String> = chains.iter().map(|(k, _)| k.to_string()).collect();
-            let _ = std::fs::write(&state.config_path, doc.to_string());
+    if let Some(chains) = doc.get_mut("chains").and_then(|i| i.as_table_mut())
+        && chains.remove(&name).is_some()
+    {
+        let remaining: Vec<String> = chains.iter().map(|(k, _)| k.to_string()).collect();
+        let _ = std::fs::write(&state.config_path, doc.to_string());
 
-            return Ok(axum::Json(ApiResponse::with_meta(
-                serde_json::json!({ "removed": name }),
-                serde_json::json!({ "remaining_chains": remaining }),
-            )));
-        }
+        return Ok(axum::Json(ApiResponse::with_meta(
+            serde_json::json!({ "removed": name }),
+            serde_json::json!({ "remaining_chains": remaining }),
+        )));
     }
 
     Err(ApiErrors::not_found(format!("chain not found: {}", name)))
@@ -1015,26 +1011,23 @@ async fn api_remove_asset(
         }
     };
 
-    if let Some(chains_table) = doc.get_mut("chains").and_then(|i| i.as_table_mut()) {
-        if let Some(chain_table) = chains_table.get_mut(&chain).and_then(|i| i.as_table_mut()) {
-            if let Some(assets_table) = chain_table.get_mut("assets").and_then(|i| i.as_table_mut())
-            {
-                if assets_table.remove(&asset).is_some() {
-                    let remaining: Vec<String> =
-                        assets_table.iter().map(|(k, _)| k.to_string()).collect();
-                    let _ = std::fs::write(&state.config_path, doc.to_string());
+    if let Some(chains_table) = doc.get_mut("chains").and_then(|i| i.as_table_mut())
+        && let Some(chain_table) = chains_table.get_mut(&chain).and_then(|i| i.as_table_mut())
+        && let Some(assets_table) = chain_table.get_mut("assets").and_then(|i| i.as_table_mut())
+    {
+        if assets_table.remove(&asset).is_some() {
+            let remaining: Vec<String> = assets_table.iter().map(|(k, _)| k.to_string()).collect();
+            let _ = std::fs::write(&state.config_path, doc.to_string());
 
-                    return Ok(axum::Json(ApiResponse::with_meta(
-                        serde_json::json!({ "removed": { "chain": chain, "name": asset } }),
-                        serde_json::json!({ "remaining_assets_on_chain": remaining }),
-                    )));
-                } else {
-                    return Err(ApiErrors::not_found(format!(
-                        "asset not found on chain {}: {}",
-                        chain, asset
-                    )));
-                }
-            }
+            return Ok(axum::Json(ApiResponse::with_meta(
+                serde_json::json!({ "removed": { "chain": chain, "name": asset } }),
+                serde_json::json!({ "remaining_assets_on_chain": remaining }),
+            )));
+        } else {
+            return Err(ApiErrors::not_found(format!(
+                "asset not found on chain {}: {}",
+                chain, asset
+            )));
         }
     }
 

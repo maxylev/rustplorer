@@ -39,11 +39,11 @@ impl EvmScanner {
         });
         let res = execute_rpc(client, rpc_urls, &payload).await?;
 
-        if let Some(error) = res.get("error") {
-            if !error.is_null() {
-                let msg = error["message"].as_str().unwrap_or("Unknown RPC error");
-                anyhow::bail!("RPC error in eth_blockNumber: {}", msg);
-            }
+        if let Some(error) = res.get("error")
+            && !error.is_null()
+        {
+            let msg = error["message"].as_str().unwrap_or("Unknown RPC error");
+            anyhow::bail!("RPC error in eth_blockNumber: {}", msg);
         }
 
         let hex = res["result"]
@@ -138,32 +138,30 @@ impl EvmScanner {
             for log in logs {
                 let log_addr = log["address"].as_str().unwrap_or("").to_lowercase();
 
-                if let Some((token_name, decimals)) = addr_to_token.get(&log_addr) {
-                    if let Some(topics) = log["topics"].as_array() {
-                        if topics.len() >= 3 {
-                            let clean_from = extract_address(&topics[1]);
-                            let clean_to = extract_address(&topics[2]);
+                if let Some((token_name, decimals)) = addr_to_token.get(&log_addr)
+                    && let Some(topics) = log["topics"].as_array()
+                    && topics.len() >= 3
+                {
+                    let clean_from = extract_address(&topics[1]);
+                    let clean_to = extract_address(&topics[2]);
 
-                            if targets.contains(&clean_to) {
-                                let raw_amount = log["data"].as_str().unwrap_or("0x0");
-                                let block_number = parse_hex_block(&log["blockNumber"]);
-                                let tx_hash =
-                                    log["transactionHash"].as_str().unwrap_or("").to_string();
+                    if targets.contains(&clean_to) {
+                        let raw_amount = log["data"].as_str().unwrap_or("0x0");
+                        let block_number = parse_hex_block(&log["blockNumber"]);
+                        let tx_hash = log["transactionHash"].as_str().unwrap_or("").to_string();
 
-                                let _ = tx
-                                    .send(DepositResult {
-                                        chain: self.name.clone(),
-                                        asset: token_name.clone(),
-                                        from_address: clean_from,
-                                        to_address: clean_to,
-                                        amount_raw: raw_amount.to_string(),
-                                        amount_clean: format_to_human(raw_amount, *decimals),
-                                        block_number,
-                                        tx_hash,
-                                    })
-                                    .await;
-                            }
-                        }
+                        let _ = tx
+                            .send(DepositResult {
+                                chain: self.name.clone(),
+                                asset: token_name.clone(),
+                                from_address: clean_from,
+                                to_address: clean_to,
+                                amount_raw: raw_amount.to_string(),
+                                amount_clean: format_to_human(raw_amount, *decimals),
+                                block_number,
+                                tx_hash,
+                            })
+                            .await;
                     }
                 }
             }

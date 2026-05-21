@@ -36,11 +36,11 @@ impl SolanaScanner {
         });
         let res = execute_rpc(client, rpc_urls, &payload).await?;
 
-        if let Some(error) = res.get("error") {
-            if !error.is_null() {
-                let msg = error["message"].as_str().unwrap_or("Unknown RPC error");
-                anyhow::bail!("RPC error in getSlot: {}", msg);
-            }
+        if let Some(error) = res.get("error")
+            && !error.is_null()
+        {
+            let msg = error["message"].as_str().unwrap_or("Unknown RPC error");
+            anyhow::bail!("RPC error in getSlot: {}", msg);
         }
 
         res["result"]
@@ -244,13 +244,12 @@ async fn scan_spl_static(
         let mut from_addr = "unknown".to_string();
         if let Some(pre_arr) = pre_token {
             for pre_log in pre_arr {
-                if pre_log["mint"].as_str().unwrap_or("") == mint {
-                    if let Some(pre_owner) = pre_log["owner"].as_str() {
-                        if pre_owner != owner {
-                            from_addr = pre_owner.to_string();
-                            break;
-                        }
-                    }
+                if pre_log["mint"].as_str().unwrap_or("") == mint
+                    && let Some(pre_owner) = pre_log["owner"].as_str()
+                    && pre_owner != owner
+                {
+                    from_addr = pre_owner.to_string();
+                    break;
                 }
             }
         }
