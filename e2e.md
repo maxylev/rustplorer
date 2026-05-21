@@ -19,6 +19,7 @@
 8. [Docker Compose Setup](#8-docker-compose-setup)
 9. [Known Limitations](#9-known-limitations)
 10. [Troubleshooting](#10-troubleshooting)
+11. [Lessons Learned for Future Contributors](#11-lessons-learned-for-future-contributors)
 
 ---
 
@@ -2547,6 +2548,152 @@ forge create \
 | 10 | **Batched `eth_getLogs` may hit node limits** | Some RPC providers limit the number of addresses in a single `eth_getLogs` call | Use `rpc_options` to control concurrency; split into multiple calls if needed |
 | 11 | **Config hot-reload is per-cycle** | Adding a chain/asset via API takes effect on the next watch cycle | Set `--interval` to a low value (e.g., 5) for faster testing |
 | 12 | **No asset `caip2` field (v0.8.0)** | Old v0.7.0 configs with `[assets.X].caip2` will fail to parse | Migrate to v0.8.0 nested format (`[chains.NAME.assets.X]`) |
+
+---
+
+## 11. Lessons Learned for Future Contributors
+
+> **Audience:** Developers and AI agents writing new e2e tests for rustplorer.  
+> **Goal:** Avoid repeating the mistakes discovered during the creation of `scripts/test_e2e_full.sh` and `scripts/test_solana_devnet.sh`.
+
+### 11.1 Scanner Code Bugs Discovered Through Testing
+
+#### SPL Token Scanner Reports Post-Balance, Not Delta
+
+The `scan_spl_static()` function in `src/solana.rs` originally used `postTokenBalances[].uiTokenAmount.amount` directly as the deposit amount. This is the **full token balance after the transaction**, not the deposit delta. A transfer of 1.5 PYUSDT to an account holding 50 PYUSDT was reported as `"53.000001"` instead of `"1.5"`.
+
+**Fix:** Compute `post_amount - pre_amount` using `num_bigint::BigUint`, matching the same address+mint pair in both `preTokenBalances` and `postTokenBalances`. If `post <= pre`, skip (no deposit).
+
+#### `--host` CLI Flag Defined but Ignored
+
+The `--host` flag in `CliArgs` was defined but never wired to the API listener — the code hardcoded `let host = "127.0.0.1";`. This made Docker containers unreachable from the host machine.
+
+**Fix:** Extract `args.host.clone()` **before** the `tokio::spawn(async move {})` block (the async move partially moves `args`). Pass the cloned `host` string into the spawned task.
+
+### 11.2 Debugging Dashboard Tests
+
+#### Inline Pipe with `rg` Can Fail Silently
+
+```bash
+# UNRELIABLE — often produces no output in scripts:
+curl -s http://127.0.0.1:3000/ | rg -qi "Deposit Monitor"
+
+# RELIABLE — capture output first, then search:
+DASH=$(curl -s http://127.0.0.1:3000/)
+echo "$DASH" | grep -qi "Rustplorer"
+```
+
+`rg` (ripgrep) sometimes fails to match when stdin comes from a pipe in bash scripts, even though the same command works in an interactive terminal. Use `grep` with heredocs or variable piping for reliability.
+
+#### Dashboard Title May Contain Unicode
+
+The dashboard `<title>` contains an em-dash character (`—`): `Rustplorer — Deposit Monitor`. Avoid pattern-matching across the dash — match just `<title>Rustplorer` or `Rustplorer` instead.
+
+### 11.3 Tracing and Log Capture
+
+#### `RUST_LOG` Is Essential for Daemon Logs
+
+Without `RUST_LOG` set, `tracing-subscriber` defaults to showing only `ERROR`-level events. The daemon's `INFO` messages (startup, scan begin, etc.) and even `WARN` messages may not appear:
+
+```bash
+# MISSING — log file stays empty:
+cargo run -- --watch --api-port 3000 -a addrs.txt &> daemon.log &
+
+# WORKING — all messages captured:
+RUST_LOG=info cargo run -- --watch --api-port 3000 -a addrs.txt &> daemon.log &
+```
+
+The graceful shutdown message uses `tracing::warn!()`, which requires at least `RUST_LOG=warn` to be captured.
+
+#### ANSI Escape Codes in Logs
+
+Tracing output includes ANSI color codes by default. When searching logs:
+
+```bash
+# This finds the shutdown message regardless of ANSI codes:
+grep -qi "shutdown" daemon.log
+
+# In CI, strip ANSI for cleaner output:
+sed 's/\x1b\[[0-9;]*m//g' daemon.log
+```
+
+### 11.4 Solana-Specific Gotchas
+
+#### Keypair Creation from Base58 Private Keys
+
+Solana CLI has no built-in way to create a keypair file from a raw base58-encoded private key string. The only reliable approach across platforms is a small Rust program:
+
+```rust
+// b58decode.rs — compile with: rustc b58decode.rs -o b58decode
+fn b58decode(input: &str) -> Vec<u8> {
+    const ALPHA: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    let mut bytes = vec![0u8; input.len() * 11 / 15 + 1];
+    for c in input.chars() {
+        let carry = ALPHA.iter().position(|&x| x == c as u8).unwrap();
+        let mut b = carry;
+        for byte in bytes.iter_mut().rev() { b += 58 * *byte as usize; *byte = (b % 256) as u8; b /= 256; }
+    }
+    while bytes.first() == Some(&0) { bytes.remove(0); }
+    while bytes.len() < 64 { bytes.insert(0, 0); }
+    bytes
+}
+// Write as JSON array: [byte0, byte1, ..., byte63]
+```
+
+`base58`, `bs58`, and `python-base58` packages are rarely pre-installed and have version/import issues across Python and Node.js environments.
+
+#### `spl-token transfer` Signature vs Block Transaction Signature
+
+The signature reported by `spl-token transfer` (from stdout) may differ from the first signature in the block's transaction array returned by `getBlock`. Do not verify deposits by matching transaction signatures from CLI output — verify by address + amount instead.
+
+#### Solana Asset Naming
+
+- Solana SPL tokens use the **mint address** as the `asset` name in `DepositResult` (e.g., `"CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"`).
+- EVM ERC-20 tokens use the **config key** as the asset name (e.g., `"MTK"` from `[chains.anvil.assets.MTK]`).
+- Native tokens (SOL, ETH, BTC) use `"Native"` as the asset name.
+
+### 11.5 Docker on macOS
+
+#### `--network host` Does Not Work
+
+On macOS, Docker Desktop runs in a VM — `--network host` is not supported. Use explicit port mapping and bind to `0.0.0.0`:
+
+```bash
+docker run -d -p 3301:3301 rustplorer:e2e \
+  --api-port 3301 --host 0.0.0.0 --watch
+```
+
+Without `--host 0.0.0.0`, the API binds to `127.0.0.1` inside the container, making it unreachable from the host even with port mapping.
+
+#### Bitcoin Docker Image Selection
+
+`ruimarinho/bitcoin-core:28` does not exist. Use `lncm/bitcoind:v24.0` for a lightweight, working image. The `bitcoin/bitcoin:28.0` image is available but much larger.
+
+### 11.6 API Error Response Formats
+
+Not all API endpoints use the same error response wrapping:
+
+| Endpoint | Error Wrapper |
+|----------|--------------|
+| `POST /v1/chains` | `{ "errors": [...] }` (top-level, via `ApiErrors`) |
+| `DELETE /v1/chains/:name` | `{ "errors": [...] }` (top-level) |
+| `POST /v1/addresses` | `{ "data": { "errors": [...] } }` (wrapped in `data`) |
+
+When testing error responses, check the HTTP status code (`%{http_code}`) instead of parsing the JSON body:
+
+```bash
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST ...)
+[ "$HTTP_CODE" = "400" ] && echo "PASS"
+```
+
+### 11.7 Test Script Design Principles
+
+1. **Idempotent transfers**: Each test run creates fresh transactions — never rely on existing chain state.
+2. **Record block/slot numbers before and after**: The test config must scope the scan to exactly the range containing the test transfers.
+3. **Cleanup everything**: Kill all background processes and Docker containers in `trap ... EXIT`. Leftover anvil/bitcoind containers break subsequent runs.
+4. **RUST_LOG=trace for debugging, info for CI**: Default tracing shows almost nothing.
+5. **Verify by amount + address, not tx hash**: Transaction hashes differ between CLI tools and RPC block queries.
+6. **Set `start_block > end_block` to skip scanning**: If you only need to test API endpoints (not deposit detection), use a config with `start_block = 10, end_block = 5` to make the scanner skip.
 
 ---
 
