@@ -178,9 +178,19 @@ impl EvmScanner {
         targets: &Arc<HashSet<String>>,
         tx: &mpsc::Sender<DepositResult>,
     ) -> Result<(), anyhow::Error> {
-        let has_native = self.assets.iter().any(|(_, a)| a.contract == "native");
+        let native_asset_name = self
+            .assets
+            .iter()
+            .find_map(|(name, a)| {
+                if a.contract == "native" {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| "Native".to_string());
 
-        if !has_native {
+        if native_asset_name == "Native" {
             return Ok(());
         }
 
@@ -198,6 +208,7 @@ impl EvmScanner {
             let chain_name = self.name.clone();
             let targets = Arc::clone(targets);
             let tx = tx.clone();
+            let native_asset_name = native_asset_name.clone();
             async move {
                 let payload = json!({
                     "jsonrpc": "2.0",
@@ -228,7 +239,7 @@ impl EvmScanner {
                                         let _ = tx
                                             .send(DepositResult {
                                                 chain: chain_name.clone(),
-                                                asset: "Native".to_string(),
+                                                asset: native_asset_name.clone(),
                                                 from_address: clean_from,
                                                 to_address: clean_to,
                                                 amount_raw: value.to_string(),

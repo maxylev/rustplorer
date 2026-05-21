@@ -312,11 +312,23 @@ async fn scan_native_static(
             let diff = post_bal - pre_bal;
             let diff_str = diff.to_string();
 
+            let native_asset_name = ctx
+                .assets
+                .iter()
+                .find_map(|(name, a)| {
+                    if a.contract == "native" {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or("Native");
+
             let _ = ctx
                 .tx
                 .send(DepositResult {
                     chain: ctx.name.to_string(),
-                    asset: "Native".to_string(),
+                    asset: native_asset_name.to_string(),
                     from_address: sender.to_string(),
                     to_address: addr,
                     amount_raw: diff_str.clone(),

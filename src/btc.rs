@@ -67,6 +67,19 @@ impl BtcScanner {
         };
 
         let block_range: Vec<u64> = (start..=end).collect();
+
+        let native_asset_name = self
+            .assets
+            .iter()
+            .find_map(|(name, a)| {
+                if a.contract == "native" {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| "Native".to_string());
+
         let fetches = futures::stream::iter(block_range.into_iter().map(|block_num| {
             let client = Arc::clone(&client);
             let rpc_urls = self.rpc_urls.clone();
@@ -74,6 +87,7 @@ impl BtcScanner {
             let chain_name = self.name.clone();
             let targets = Arc::clone(&targets);
             let tx = tx.clone();
+            let native_asset_name = native_asset_name.clone();
             async move {
                 let hash_payload = json!({
                     "jsonrpc": "1.0",
@@ -128,6 +142,7 @@ impl BtcScanner {
                             &chain_name,
                             &targets,
                             &tx,
+                            &native_asset_name,
                         )
                         .await;
                     }
@@ -151,6 +166,7 @@ async fn process_transaction_static(
     name: &str,
     targets: &Arc<HashSet<String>>,
     tx: &mpsc::Sender<DepositResult>,
+    asset_name: &str,
 ) {
     let vouts = match txn["vout"].as_array() {
         Some(v) => v,
@@ -188,7 +204,7 @@ async fn process_transaction_static(
             let _ = tx
                 .send(DepositResult {
                     chain: name.to_string(),
-                    asset: "Native".to_string(),
+                    asset: asset_name.to_string(),
                     from_address: from_address.clone(),
                     to_address,
                     amount_raw: raw_amount.clone(),

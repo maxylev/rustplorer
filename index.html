@@ -1935,10 +1935,10 @@
                                     id="sortSelect"
                                     title="Sort deposits"
                                 >
-                                    <option value="block">↓ Block #</option>
                                     <option value="newest">
                                         ↓ Newest seen
                                     </option>
+                                    <option value="block">↓ Block #</option>
                                     <option value="amount">↓ Amount</option>
                                 </select>
                             </div>
@@ -2627,7 +2627,7 @@
             // Filter state
             let filterSearch = "";
             let filterChain = "";
-            let sortMode = "block";
+            let sortMode = "newest";
 
             // New-deposit tracking
             let knownDepositKeys = new Set();
@@ -2677,6 +2677,7 @@
             function chainCls(name, caip2) {
                 const n = {
                     ethereum: "eth",
+                    anvil: "eth",
                     base: "base",
                     polygon: "poly",
                     solana: "sol",
@@ -2702,6 +2703,7 @@
             function chainLbl(name, caip2) {
                 const n = {
                     ethereum: "ETH",
+                    anvil: "ETH",
                     base: "BASE",
                     polygon: "POLY",
                     solana: "SOL",
