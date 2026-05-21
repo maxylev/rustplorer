@@ -389,7 +389,7 @@
             }
             .btn-accent {
                 background: var(--accent);
-                color: #07080b;
+                color: #fff;
             }
             .btn-accent:hover {
                 opacity: 0.85;
@@ -2003,7 +2003,7 @@
                         </div>
 
                         <div class="deposit-scroll" id="depositList">
-                            <div class="empty-state" id="depositEmpty">
+                            <div class="empty-state">
                                 <div class="empty-ico">
                                     <svg
                                         viewBox="0 0 24 24"
@@ -3159,22 +3159,8 @@
                 // Build chain pills
                 buildChainPills();
 
-                if (count === 0) {
-                    const empty = document.getElementById("depositEmpty");
-                    if (empty.parentNode !== list) {
-                        list.innerHTML = "";
-                        list.appendChild(empty);
-                    }
-                    empty.style.display = "";
-                    document.getElementById("filterResults").textContent = "";
-                    return;
-                }
-
-                const empty = document.getElementById("depositEmpty");
-                if (empty.parentNode === list) empty.remove();
-
-                const sorted = filterAndSort(deposits);
-                const filtered = sorted;
+                // Filter and sort
+                const filtered = filterAndSort(deposits);
 
                 // Update filter result label
                 const resEl = document.getElementById("filterResults");
@@ -3189,17 +3175,34 @@
                 const newKeys = [...incoming].filter(
                     (k) => !knownDepositKeys.has(k),
                 );
-                const hasNew = newKeys.length > 0;
 
-                if (hasNew) {
+                if (newKeys.length > 0) {
                     newDepositCount += newKeys.length;
-                    // If user scrolled down, show the banner; otherwise auto-scroll to top
                     const scrollTop = list.scrollTop;
                     if (scrollTop > 60 && activeView === "feed") {
                         showBanner(newDepositCount);
                     }
                 }
                 knownDepositKeys = incoming;
+
+                // Build HTML
+                if (count === 0) {
+                    list.innerHTML = `<div class="empty-state">
+                        <div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+                        <span class="empty-ttl">No deposits yet</span>
+                        <span class="empty-sub">Incoming deposits across all tracked addresses will appear here automatically.</span>
+                    </div>`;
+                    return;
+                }
+
+                if (filtered.length === 0) {
+                    list.innerHTML = `<div class="empty-state">
+                        <div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+                        <span class="empty-ttl">No matching deposits</span>
+                        <span class="empty-sub">Try adjusting your search or filter.</span>
+                    </div>`;
+                    return;
+                }
 
                 let html = "";
                 filtered.forEach((d) => {
