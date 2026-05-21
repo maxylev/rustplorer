@@ -2664,14 +2664,20 @@
                 if (diff < 3600000) return Math.floor(diff / 60000) + "m ago";
                 if (diff < 86400000)
                     return Math.floor(diff / 3600000) + "h ago";
-                return d.toLocaleDateString();
+                return d.toLocaleDateString("en-GB");
             }
 
             function fullDate(ts) {
                 if (!ts) return "";
                 const d = typeof ts === "number" ? new Date(ts) : new Date(ts);
                 if (isNaN(d)) return "";
-                return d.toLocaleString();
+                const dd = String(d.getDate()).padStart(2, "0");
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const yyyy = d.getFullYear();
+                const hh = String(d.getHours()).padStart(2, "0");
+                const min = String(d.getMinutes()).padStart(2, "0");
+                const ss = String(d.getSeconds()).padStart(2, "0");
+                return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
             }
 
             function chainCls(name, caip2) {
@@ -3097,6 +3103,7 @@
                     hour: "2-digit",
                     minute: "2-digit",
                     second: "2-digit",
+                    hour12: false,
                 });
                 document.getElementById("sf-poll").textContent =
                     "Last poll: " + timeStr;
