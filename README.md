@@ -35,8 +35,8 @@ Rustplorer continuously watches blockchain blocks for incoming deposits to your 
 ## Quick Start
 
 ```bash
-# Build
-cargo build --release
+# Install
+cargo install rustplorer
 
 # Create a config file (see Configuration below)
 cp Config.toml.example Config.toml
@@ -45,10 +45,10 @@ cp Config.toml.example Config.toml
 echo "0x70997970c51812dc3a010c7d01b50e0d17dc79c8" > addresses.txt
 
 # Single scan
-./target/release/rustplorer --config Config.toml --addresses addresses.txt
+rustplorer --config Config.toml --addresses addresses.txt
 
 # Daemon mode with API + dashboard on port 3000
-./target/release/rustplorer --config Config.toml --addresses addresses.txt \
+rustplorer --config Config.toml --addresses addresses.txt \
   --watch --api-port 3000 --interval 60 --verbose
 ```
 
@@ -862,7 +862,21 @@ Bitcoin amounts from the RPC come as JSON numbers (e.g. `0.12345678`). With `ser
 
 ---
 
-## Building from Source
+## Installation
+
+### From Source
+
+```bash
+git clone https://github.com/maxylev/rustplorer.git
+cd rustplorer
+cargo install --path .
+```
+
+### From crates.io
+
+```bash
+cargo install rustplorer
+```
 
 ### Prerequisites
 
@@ -874,16 +888,6 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 rustup default stable
 rustc --version  # ensure 1.95.0+
 ```
-
-### Build
-
-```bash
-git clone https://github.com/maxylev/rustplorer.git
-cd rustplorer
-cargo build --release
-```
-
-The optimized binary is at `./target/release/rustplorer`.
 
 ### Release Profile
 
