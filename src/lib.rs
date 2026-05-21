@@ -33,7 +33,7 @@ pub const DEFAULT_BTC_LOOKBACK: u64 = 6;
 /// caip2 = "eip155:1"
 /// rpc = ["https://ethereum.publicnode.com"]
 ///
-///   [chains.ethereum.assets.ETH_NATIVE]
+///   [chains.ethereum.assets.ETH]
 ///   contract = "native"
 ///   decimals = 18
 /// ```

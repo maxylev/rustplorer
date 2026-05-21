@@ -11,7 +11,7 @@ rpc = [
     "https://1rpc.io/eth",
 ]
 
-  [chains.ethereum.assets.ETH_NATIVE]
+  [chains.ethereum.assets.ETH]
   contract = "native"
   decimals = 18
 
@@ -64,7 +64,7 @@ rpc = [
   max_concurrent = 1
   delay_ms = 500
 
-  [chains.solana.assets.SOL_NATIVE]
+  [chains.solana.assets.SOL]
   contract = "native"
   decimals = 9
 
@@ -82,6 +82,6 @@ rpc = [
     "https://bitcoin-rpc.publicnode.com",
 ]
 
-  [chains.bitcoin.assets.BTC_NATIVE]
+  [chains.bitcoin.assets.BTC]
   contract = "native"
   decimals = 8

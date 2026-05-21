@@ -282,7 +282,7 @@ caip2 = "eip155:31337"
 start_block = $ANVIL_START_BLOCK
 rpc = ["http://127.0.0.1:8545"]
 
-  [chains.anvil.assets.ETH_NATIVE]
+  [chains.anvil.assets.ETH]
   contract = "native"
   decimals = 18
 
@@ -307,7 +307,7 @@ caip2 = "eip155:31337"
 start_block = $ANVIL_START_BLOCK
 rpc = ["http://127.0.0.1:8545"]
 
-  [chains.anvil.assets.ETH_NATIVE]
+  [chains.anvil.assets.ETH]
   contract = "native"
   decimals = 18
 TOML
@@ -366,7 +366,7 @@ rpc = ["http://127.0.0.1:8899"]
   max_concurrent = 1
   delay_ms = 200
 
-  [chains.solana.assets.SOL_NATIVE]
+  [chains.solana.assets.SOL]
   contract = "native"
   decimals = 9
 TOML
@@ -378,7 +378,7 @@ TOML
                     echo "  SPL demo mint created: $SPL_MINT"
                     cat >> "$CONFIG" << TOML
 
-  [chains.solana.assets.SPL_MOCK]
+  [chains.solana.assets.SPL]
   contract = "$SPL_MINT"
   decimals = 9
 TOML
@@ -424,7 +424,7 @@ caip2 = "bip122:000000000019d6689c085ae165831e93"
 start_block = $BTC_START_BLOCK
 rpc = ["http://$BTC_RPCUSER:$BTC_RPCPASS@127.0.0.1:$BTC_PORT"]
 
-  [chains.bitcoin.assets.BTC_NATIVE]
+  [chains.bitcoin.assets.BTC]
   contract = "native"
   decimals = 8
 TOML
@@ -493,7 +493,7 @@ if ! $NO_LOCAL_CHAINS; then
             echo "  Seeded 0.1 SOL -> $SOL_TARGET"
         fi
         if [ -n "${SPL_MINT:-}" ] && need_cmd spl-token && spl-token transfer "$SPL_MINT" 1.25 "$SOL_TARGET" --url http://localhost:8899 --fund-recipient &>/dev/null 2>&1; then
-            echo "  Seeded 1.25 SPL_MOCK -> $SOL_TARGET"
+            echo "  Seeded 1.25 SPL -> $SOL_TARGET"
         fi
     fi
 
@@ -574,7 +574,7 @@ if [ -n "${ANVIL_PID:-}" ] || [ -n "${SOLANA_PID:-}" ] || [ -n "${BTC_TARGET:-}"
                 fi
                 if [ -n "${SPL_MINT:-}" ] && spl-token transfer "$SPL_MINT" 1.25 "$SOL_TARGET" --url http://localhost:8899 --fund-recipient &>/dev/null 2>&1; then
                     ((++COUNT))
-                    echo "  [gen #${COUNT}] Sent 1.25 SPL_MOCK -> $SOL_TARGET"
+                    echo "  [gen #${COUNT}] Sent 1.25 SPL -> $SOL_TARGET"
                 fi
             fi
             if [ -n "${BTC_TARGET:-}" ] && docker ps --format '{{.Names}}' | grep -q "^$BTC_CONTAINER$"; then

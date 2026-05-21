@@ -156,7 +156,7 @@ async fn detect_sol_native_deposit() {
             assets: {
                 let mut a = HashMap::new();
                 a.insert(
-                    "SOL_NATIVE".to_string(),
+                    "SOL".to_string(),
                     AssetConfig {
                         contract: "native".to_string(),
                         decimals: 9,
@@ -174,7 +174,7 @@ async fn detect_sol_native_deposit() {
     let native_deposits: Vec<_> = result
         .deposits
         .iter()
-        .filter(|d| d.asset == "Native" && d.to_address == target_addr)
+        .filter(|d| d.asset == "SOL" && d.to_address == target_addr)
         .collect();
 
     assert!(

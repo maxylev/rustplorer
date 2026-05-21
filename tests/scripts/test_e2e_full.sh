@@ -453,7 +453,7 @@ rpc = [
     "http://127.0.0.1:8545",
 ]
 
-  [chains.anvil.assets.ETH_NATIVE]
+  [chains.anvil.assets.ETH]
   contract = "native"
   decimals = 18
 
@@ -486,7 +486,7 @@ rpc = [
   max_concurrent = 1
   delay_ms = 200
 
-  [chains.solana.assets.SOL_NATIVE]
+  [chains.solana.assets.SOL]
   contract = "native"
   decimals = 9
 TOML
@@ -494,7 +494,7 @@ TOML
 if $SOLANA_SPL_AVAILABLE && [ -n "$SPL_MINT" ]; then
 cat >> "$CONFIG" << TOML
 
-  [chains.solana.assets.SPL_MOCK]
+  [chains.solana.assets.SPL]
   contract = "$SPL_MINT"
   decimals = 9
 TOML
@@ -513,7 +513,7 @@ rpc = [
     "http://$BTC_RPCUSER:$BTC_RPCPASS@$BTC_HOST:$BTC_PORT",
 ]
 
-  [chains.bitcoin.assets.BTC_NATIVE]
+  [chains.bitcoin.assets.BTC]
   contract = "native"
   decimals = 8
 TOML
@@ -538,7 +538,7 @@ SCAN_OUT=$(cargo run -q -- --config "$CONFIG" --addresses "$ADDRS" --format json
 
 # Verify EVM native
 if [ -n "$ANVIL_TARGET" ]; then
-    NATIVE_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "anvil" and .asset == "Native") | .amount_clean' 2>/dev/null | head -1)
+    NATIVE_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "anvil" and .asset == "ETH") | .amount_clean' 2>/dev/null | head -1)
     if [ "$NATIVE_AMT" = "1" ]; then
         _pass "EVM native ETH: $NATIVE_AMT ETH detected"
     else
@@ -570,7 +570,7 @@ fi
 
 # Verify Solana
 if $SOLANA_VALIDATOR_UP && [ -n "$SOL_TARGET" ]; then
-    SOL_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "solana" and .asset == "Native" and .to_address == "'$SOL_TARGET'") | .amount_clean' 2>/dev/null | head -1)
+    SOL_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "solana" and .asset == "SOL" and .to_address == "'$SOL_TARGET'") | .amount_clean' 2>/dev/null | head -1)
     if [ "$SOL_AMT" = "2.5" ]; then
         _pass "Solana native SOL: $SOL_AMT SOL detected"
     else
@@ -578,9 +578,9 @@ if $SOLANA_VALIDATOR_UP && [ -n "$SOL_TARGET" ]; then
     fi
 
     if $SOLANA_SPL_AVAILABLE && [ -n "$SPL_MINT" ]; then
-        SPL_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "solana" and .asset == "SPL_MOCK" and .to_address == "'$SOL_TARGET'") | .amount_clean' 2>/dev/null | head -1)
+        SPL_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "solana" and .asset == "SPL" and .to_address == "'$SOL_TARGET'") | .amount_clean' 2>/dev/null | head -1)
         if [ "$SPL_AMT" = "15.5" ]; then
-            _pass "Solana SPL token: $SPL_AMT SPL_MOCK detected"
+            _pass "Solana SPL token: $SPL_AMT SPL detected"
         else
             _fail "Solana SPL token: expected 15.5, got '${SPL_AMT:-none}'"
         fi
@@ -600,7 +600,7 @@ if [ -n "${ANVIL_PID:-}" ] && [ -n "${SNAPSHOT_ID:-}" ]; then
     cast send "$FEE_TOKEN_ADDR" "transfer(address,uint256)" "$ANVIL_TARGET" 100000000 --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" &>/dev/null
     sleep 2
     REORG_SCAN=$(cargo run -q -- --config "$CONFIG" --addresses "$ADDRS" --format json 2>/dev/null)
-    REORG_AMT=$(echo "$REORG_SCAN" | jq -r '.[] | select(.chain == "anvil" and .asset == "Native") | .amount_clean' 2>/dev/null | head -1)
+    REORG_AMT=$(echo "$REORG_SCAN" | jq -r '.[] | select(.chain == "anvil" and .asset == "ETH") | .amount_clean' 2>/dev/null | head -1)
     if [ "$REORG_AMT" = "2" ]; then
         _pass "EVM reorg: canonical 2 ETH deposit detected"
     else
