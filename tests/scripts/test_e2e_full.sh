@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# =============================================================================
+# rustplorer — full end-to-end test suite
+#
+# Covers: anvil (EVM), solana-test-validator (local), bitcoind (regtest docker),
+#         ERC-20 deploy + transfers, SPL deploy + transfers, native transfers
+#         on all chains, deposit detection (JSON/CSV), daemon mode, all REST API
+#         endpoints, CLI management flags, graceful shutdown, Docker build + run.
+#
+# Prerequisites: docker, anvil, cast, forge, solana-test-validator, jq, curl
+#
+# Usage:
+#   chmod +x tests/scripts/test_e2e_full.sh
+#   ./tests/scripts/test_e2e_full.sh
+# =============================================================================
 set -euo pipefail
 
 PASS=0; FAIL=0; SKIP=0
@@ -20,6 +34,16 @@ abort_if_missing cast    "Install Foundry"
 abort_if_missing forge   "Install Foundry"
 abort_if_missing jq      "Install jq: brew install jq"
 abort_if_missing curl    "Install curl"
+abort_if_missing rg      "Install ripgrep: brew install ripgrep"
+
+SOLANA_VALIDATOR_AVAILABLE=false
+if need_cmd solana-test-validator && need_cmd solana && need_cmd solana-keygen; then
+    SOLANA_VALIDATOR_AVAILABLE=true
+fi
+SOLANA_SPL_AVAILABLE=false
+if $SOLANA_VALIDATOR_AVAILABLE && need_cmd spl-token; then
+    SOLANA_SPL_AVAILABLE=true
+fi
 
 TESTDIR="/tmp/rustplorer-e2e-test"
 rm -rf "$TESTDIR" && mkdir -p "$TESTDIR"
@@ -28,10 +52,54 @@ CONFIG="$TESTDIR/Config.toml"
 ADDRS="$TESTDIR/addresses.txt"
 API_PORT="3300"
 LOG="$TESTDIR/daemon.log"
+SOLANA_FAUCET_PORT=$((9900 + (RANDOM % 1000)))
 BTC_HOST="127.0.0.1"
 BTC_PORT="18443"
 BTC_RPCUSER="rpcuser"
 BTC_RPCPASS="rpcpassword"
+
+PROJECT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+BTC_CONTAINER=""   # initialised early so cleanup trap can reference safely under set -u
+
+# ============================================================
+# Cleanup trap — must be set early so failures clean up
+# ============================================================
+_DID_CHAIN_CLEANUP=false
+cleanup_chains() {
+    # Guard: avoid double-run when INT/TERM handler calls 'exit 0'
+    # which re-fires the EXIT trap.
+    if $_DID_CHAIN_CLEANUP; then
+        return 0
+    fi
+    _DID_CHAIN_CLEANUP=true
+
+    docker rm -f "$BTC_CONTAINER" 2>/dev/null || true
+    if [ -n "${ANVIL_PID:-}" ]; then
+        kill "$ANVIL_PID" 2>/dev/null || true
+        sleep 1
+        kill -0 "$ANVIL_PID" 2>/dev/null && kill -9 "$ANVIL_PID" 2>/dev/null || true
+        wait "$ANVIL_PID" 2>/dev/null || true
+        ANVIL_PID=""
+    fi
+    if [ -n "${SOLANA_PID:-}" ]; then
+        pkill -P "$SOLANA_PID" 2>/dev/null || true
+        kill "$SOLANA_PID" 2>/dev/null || true
+        sleep 1
+        kill -0 "$SOLANA_PID" 2>/dev/null && kill -9 "$SOLANA_PID" 2>/dev/null || true
+        pkill -9 -P "$SOLANA_PID" 2>/dev/null || true
+        wait "$SOLANA_PID" 2>/dev/null || true
+        SOLANA_PID=""
+    fi
+    if [ -n "${DAEMON_PID:-}" ] && kill -0 "$DAEMON_PID" 2>/dev/null; then
+        kill -INT "$DAEMON_PID" 2>/dev/null || true
+        sleep 2
+        kill -0 "$DAEMON_PID" 2>/dev/null && kill -9 "$DAEMON_PID" 2>/dev/null || true
+        wait "$DAEMON_PID" 2>/dev/null || true
+        DAEMON_PID=""
+    fi
+}
+trap cleanup_chains EXIT
+trap 'cleanup_chains; exit 0' INT TERM
 
 # ============================================================
 # Phase 1: Start Local Chains
@@ -51,10 +119,60 @@ if need_cmd anvil; then
     if cast block-number --rpc-url http://127.0.0.1:8545 &>/dev/null; then
         _pass "anvil started"
     else
-        _fail "anvil failed"; ANVIL_PID=""
+        _fail "anvil failed"
+        kill "$ANVIL_PID" 2>/dev/null || true
+        wait "$ANVIL_PID" 2>/dev/null || true
+        ANVIL_PID=""
     fi
 else
     _skip "anvil not available"
+fi
+
+# --- Start solana-test-validator ---
+SOLANA_PID=""
+SOLANA_VALIDATOR_UP=false
+if $SOLANA_VALIDATOR_AVAILABLE; then
+    echo "Starting solana-test-validator..."
+    solana-test-validator \
+        --reset \
+        --limit-ledger-size 2000000 \
+        --slots-per-epoch 64 \
+        --rpc-port 8899 \
+        --faucet-port "$SOLANA_FAUCET_PORT" \
+        --quiet \
+        &>/tmp/solana-validator.log &
+    SOLANA_PID=$!
+
+    # Wait for validator health check
+    for i in $(seq 1 60); do
+        if curl -s -X POST "http://localhost:8899" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' | grep -q "ok" 2>/dev/null; then
+            echo "  Solana validator ready after ${i}s"
+            SOLANA_VALIDATOR_UP=true
+            break
+        fi
+        sleep 2
+    done
+
+    if $SOLANA_VALIDATOR_UP; then
+        # Set up payer keypair for test transactions
+        PAYER_KEY="/tmp/solana-test-payer.json"
+        solana-keygen new -o "$PAYER_KEY" --no-bip39-passphrase --force --silent 2>/dev/null
+        solana config set --keypair "$PAYER_KEY" --url http://localhost:8899 &>/dev/null
+        solana airdrop 100 --url http://localhost:8899 &>/dev/null
+        sleep 1
+        _pass "solana-test-validator started"
+    else
+        echo "  Solana validator logs:"; tail -3 /tmp/solana-validator.log
+        _fail "solana-test-validator failed"
+        pkill -P "$SOLANA_PID" 2>/dev/null || true
+        kill "$SOLANA_PID" 2>/dev/null || true
+        wait "$SOLANA_PID" 2>/dev/null || true
+        SOLANA_PID=""
+    fi
+else
+    _skip "solana-test-validator not available"
 fi
 
 # --- Start bitcoind via Docker ---
@@ -98,16 +216,18 @@ else
 fi
 
 # ============================================================
-# Phase 2: Deploy ERC-20 + Send Transfers
+# Phase 2: Deploy ERC-20 + Send EVM Transfers
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 2: Deploy ERC-20 and send transfers"
+echo "Phase 2: Deploy ERC-20 and send EVM transfers"
 echo "══════════════════════════════════════════════════════"
 
 ANVIL_RPC="http://127.0.0.1:8545"
 SENDER_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 ANVIL_TARGET="0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+ETH_BLOCK_BEFORE=0
+ETH_BLOCK_AFTER=0
 
 # Deploy MockToken
 WORKDIR=$(mktemp -d)
@@ -125,6 +245,39 @@ contract MockToken {
     constructor() { totalSupply = 1000000 * 10**6; balanceOf[msg.sender] = totalSupply; emit Transfer(address(0), msg.sender, totalSupply); }
     function transfer(address to, uint256 value) public returns (bool) { require(balanceOf[msg.sender] >= value, "insufficient"); balanceOf[msg.sender] -= value; balanceOf[to] += value; emit Transfer(msg.sender, to, value); return true; }
 }
+
+contract FeeToken {
+    string public name = "FeeToken";
+    string public symbol = "FTK";
+    uint8 public decimals = 6;
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    constructor() { totalSupply = 1000000 * 10**6; balanceOf[msg.sender] = totalSupply; emit Transfer(address(0), msg.sender, totalSupply); }
+    function transfer(address to, uint256 value) public returns (bool) {
+        uint256 tax = value / 10;
+        uint256 netValue = value - tax;
+        require(balanceOf[msg.sender] >= value, "insufficient");
+        balanceOf[msg.sender] -= value;
+        balanceOf[to] += netValue;
+        balanceOf[address(0xdead)] += tax;
+        emit Transfer(msg.sender, to, netValue);
+        return true;
+    }
+}
+
+contract FailToken {
+    string public name = "FailToken";
+    string public symbol = "FTK_FAIL";
+    uint8 public decimals = 6;
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    
+    // Emits a Transfer log, but then intentionally reverts the transaction
+    function transferAndRevert(address to, uint256 value) public {
+        emit Transfer(msg.sender, to, value);
+        revert("intentional EVM revert");
+    }
+}
 SOL
 cat > "$WORKDIR/foundry.toml" << 'TOML'
 [profile.default]
@@ -136,8 +289,22 @@ TOML
 if [ -n "$ANVIL_PID" ]; then
     forge build --root "$WORKDIR" &>/dev/null
     TOKEN_ADDR=$(forge create --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" --root "$WORKDIR" --broadcast src/MockToken.sol:MockToken 2>&1 | grep "Deployed to:" | awk '{print $3}')
+    FEE_TOKEN_ADDR=$(forge create --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" --root "$WORKDIR" --broadcast src/MockToken.sol:FeeToken 2>&1 | grep "Deployed to:" | awk '{print $3}')
     echo "MockToken deployed: $TOKEN_ADDR"
-    _pass "ERC-20 deployed"
+    echo "FeeToken deployed: $FEE_TOKEN_ADDR"
+
+    FAIL_TOKEN_ADDR=$(forge create --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" --root "$WORKDIR" --broadcast src/MockToken.sol:FailToken 2>&1 | grep "Deployed to:" | awk '{print $3}')
+    echo "FailToken deployed: $FAIL_TOKEN_ADDR"
+
+    # This call will fail and revert on-chain
+    cast send "$FAIL_TOKEN_ADDR" "transferAndRevert(address,uint256)" "$ANVIL_TARGET" 50000000 --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" &>/dev/null || true
+
+    _pass "ERC-20 contracts deployed"
+
+    SNAPSHOT_ID=$(curl -s -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"evm_snapshot","params":[],"id":1}' \
+        "$ANVIL_RPC" | jq -r '.result')
+    echo "Anvil pre-transfer snapshot: $SNAPSHOT_ID"
 
     # Send transfers
     ETH_BLOCK_BEFORE=$(cast block-number --rpc-url "$ANVIL_RPC")
@@ -145,21 +312,108 @@ if [ -n "$ANVIL_PID" ]; then
     cast send --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" "$ANVIL_TARGET" --value 1ether &>/dev/null
     echo "Sending 50 MTK to $ANVIL_TARGET..."
     cast send "$TOKEN_ADDR" "transfer(address,uint256)" "$ANVIL_TARGET" 50000000 --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" &>/dev/null
+    echo "Sending 100 FTK to $ANVIL_TARGET (90 FTK net after fee)..."
+    cast send "$FEE_TOKEN_ADDR" "transfer(address,uint256)" "$ANVIL_TARGET" 100000000 --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" &>/dev/null
     sleep 2
     ETH_BLOCK_AFTER=$(cast block-number --rpc-url "$ANVIL_RPC")
-    _pass "ETH + ERC-20 transfers sent"
+    _pass "ETH + ERC-20 + fee-on-transfer transfers sent"
 else
-    _skip "anvil not available (EVM transfers skipped)"; ANVIL_TARGET=""
+    _skip "anvil not available (EVM transfers skipped)"; ANVIL_TARGET=""; TOKEN_ADDR=""; FEE_TOKEN_ADDR=""; SNAPSHOT_ID=""
 fi
 
-# --- Send BTC transfer ---
-BTC_TARGET=""
+# ============================================================
+# Phase 3: Send Solana Transfers
+# ============================================================
+echo ""
+echo "══════════════════════════════════════════════════════"
+echo "Phase 3: Send Solana transfers"
+echo "══════════════════════════════════════════════════════"
+
+SOL_TARGET=""
+SOL_SLOT_BEFORE=0
+SOL_SLOT_AFTER=0
+SPL_MINT=""
+
+if $SOLANA_VALIDATOR_UP; then
+    # Generate a dedicated target keypair for this test
+    SOL_TARGET_KEY="/tmp/solana-e2e-target.json"
+    solana-keygen new -o "$SOL_TARGET_KEY" --no-bip39-passphrase --force --silent 2>/dev/null
+    SOL_TARGET=$(solana address -k "$SOL_TARGET_KEY" 2>/dev/null | tr -d '\n')
+    echo "Solana target: $SOL_TARGET"
+
+    SOL_SLOT_BEFORE=$(curl -s -X POST "http://localhost:8899" \
+        -H "Content-Type: application/json" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"getSlot"}' | jq -r '.result')
+    echo "Solana slot before: $SOL_SLOT_BEFORE"
+
+    echo "Sending 2.5 SOL to target..."
+    solana transfer --url http://localhost:8899 --allow-unfunded-recipient \
+        -k /tmp/solana-test-payer.json "$SOL_TARGET" 2.5 &>/dev/null
+
+    if $SOLANA_SPL_AVAILABLE; then
+        echo "Creating SPL token mint..."
+        SPL_MINT=$(spl-token create-token --decimals 9 --url http://localhost:8899 2>/dev/null | awk '/Creating token/ {print $3}')
+        echo "SPL mint: $SPL_MINT"
+        spl-token create-account "$SPL_MINT" --url http://localhost:8899 &>/dev/null
+        spl-token mint "$SPL_MINT" 100 --url http://localhost:8899 &>/dev/null
+        echo "Sending 15.5 SPL tokens to $SOL_TARGET..."
+        spl-token transfer "$SPL_MINT" 15.5 "$SOL_TARGET" --url http://localhost:8899 --fund-recipient &>/dev/null
+        _pass "SPL transfer sent"
+    else
+        _skip "spl-token not available (SPL transfers skipped)"
+    fi
+
+    SIG_SLOT=0
+    for _ in $(seq 1 45); do
+        sleep 1
+        SIG_RESP=$(curl -s -X POST "http://localhost:8899" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"getSignaturesForAddress","params":["'$SOL_TARGET'",{"limit":10,"minContextSlot":'$SOL_SLOT_BEFORE',"commitment":"confirmed"}]}' 2>/dev/null)
+        SIG_COUNT=$(echo "$SIG_RESP" | jq '.result | length' 2>/dev/null || echo 0)
+        if [ "${SIG_COUNT:-0}" -gt 0 ]; then
+            # Grab the highest slot from the returned signatures
+            SIG_SLOT=$(echo "$SIG_RESP" | jq '[.result[].slot] | max' 2>/dev/null || echo 0)
+        fi
+        CUR_SLOT=$(curl -s -X POST "http://localhost:8899" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[{"commitment":"confirmed"}]}' | jq -r '.result')
+        # Wait until signatures are visible AND the slot has advanced past our
+        # starting point enough to comfortably cover the transaction slots.
+        if [ "${SIG_COUNT:-0}" -gt 0 ] && [ "${CUR_SLOT:-0}" -gt "$((SOL_SLOT_BEFORE + 2))" ]; then
+            break
+        fi
+    done
+
+    # Use the max of getSlot and the actual signature slot, ensuring the scan
+    # range covers the confirmed transaction even if getSlot lags slightly.
+    SOL_SLOT_AFTER=$SIG_SLOT
+    if [ "${CUR_SLOT:-0}" -gt "$SOL_SLOT_AFTER" ]; then
+        SOL_SLOT_AFTER=$CUR_SLOT
+    fi
+    echo "Solana slot after: $SOL_SLOT_AFTER (sig_slot=$SIG_SLOT, cur_slot=${CUR_SLOT:-0})"
+    _pass "SOL transfer sent"
+else
+    _skip "solana-test-validator not available (SOL transfers skipped)"
+fi
+
+# ============================================================
+# Phase 4: Send BTC Transfer
+# ============================================================
+echo ""
+echo "══════════════════════════════════════════════════════"
+echo "Phase 4: Send BTC transfer"
+echo "══════════════════════════════════════════════════════"
+
+BTC_BLOCK_BEFORE=0
+BTC_BLOCK_AFTER=0
+
 if $BTC_UP; then
     _btc() { docker exec "$BTC_CONTAINER" bitcoin-cli -regtest -rpcuser="$BTC_RPCUSER" -rpcpassword="$BTC_RPCPASS" -rpcport="$BTC_PORT" "$@"; }
-    BTC_TARGET=$(_btc getnewaddress "e2e-target")
+    BTC_TARGET_1=$(_btc getnewaddress "e2e-target-1" "bech32")
+    BTC_TARGET_2=$(_btc getnewaddress "e2e-target-2" "bech32")
     BTC_BLOCK_BEFORE=$(_btc getblockcount)
-    echo "Sending 0.12345678 BTC to $BTC_TARGET..."
-    _btc sendtoaddress "$BTC_TARGET" 0.12345678 &>/dev/null
+    echo "Sending multi-output BTC transaction (0.12345678 to target 1, 0.05 to target 2)..."
+    _btc sendmany "" "{\"$BTC_TARGET_1\":0.12345678,\"$BTC_TARGET_2\":0.05000000}" &>/dev/null
     _btc generatetoaddress 1 "$(_btc getnewaddress "miner")" &>/dev/null
     BTC_BLOCK_AFTER=$(_btc getblockcount)
     _pass "BTC transfer sent"
@@ -168,23 +422,23 @@ else
 fi
 
 # ============================================================
-# Phase 3: Build rustplorer
+# Phase 5: Build rustplorer
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 3: Build rustplorer"
+echo "Phase 5: Build rustplorer"
 echo "══════════════════════════════════════════════════════"
 
-cd /Users/llama/Developer/rustplorer
+cd "$PROJECT_DIR"
 cargo build -q 2>&1 || { echo "BUILD FAILED"; exit 1; }
 _pass "rustplorer built"
 
 # ============================================================
-# Phase 4: Create test config
+# Phase 6: Create test config (all chains)
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 4: Create test config"
+echo "Phase 6: Create test config"
 echo "══════════════════════════════════════════════════════"
 
 cat > "$CONFIG" << TOML
@@ -206,9 +460,49 @@ rpc = [
   [chains.anvil.assets.MTK]
   contract = "${TOKEN_ADDR:-0x0}"
   decimals = 6
+
+  [chains.anvil.assets.FTK]
+  contract = "${FEE_TOKEN_ADDR:-0x0}"
+  decimals = 6
+
+  [chains.anvil.assets.FTK_FAIL]
+  contract = "${FAIL_TOKEN_ADDR:-0x0}"
+  decimals = 6
 TOML
 
-if $BTC_UP && [ -n "$BTC_TARGET" ]; then
+# Append Solana if available
+if $SOLANA_VALIDATOR_UP && [ -n "$SOL_TARGET" ]; then
+cat >> "$CONFIG" << TOML
+
+[chains.solana]
+caip2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+start_block = $SOL_SLOT_BEFORE
+end_block = $SOL_SLOT_AFTER
+rpc = [
+    "http://127.0.0.1:8899",
+]
+
+  [chains.solana.rpc_options]
+  max_concurrent = 1
+  delay_ms = 200
+
+  [chains.solana.assets.SOL_NATIVE]
+  contract = "native"
+  decimals = 9
+TOML
+
+if $SOLANA_SPL_AVAILABLE && [ -n "$SPL_MINT" ]; then
+cat >> "$CONFIG" << TOML
+
+  [chains.solana.assets.SPL_MOCK]
+  contract = "$SPL_MINT"
+  decimals = 9
+TOML
+fi
+fi
+
+# Append Bitcoin if available
+if $BTC_UP && [ -n "$BTC_TARGET_1" ]; then
 cat >> "$CONFIG" << TOML
 
 [chains.bitcoin]
@@ -225,16 +519,19 @@ rpc = [
 TOML
 fi
 
+# Build address list
 echo "$ANVIL_TARGET" > "$ADDRS"
-echo "$BTC_TARGET" >> "$ADDRS"
+if [ -n "$SOL_TARGET" ]; then echo "$SOL_TARGET" >> "$ADDRS"; fi
+if [ -n "$BTC_TARGET_1" ]; then echo "$BTC_TARGET_1" >> "$ADDRS"; fi
+if [ -n "$BTC_TARGET_2" ]; then echo "$BTC_TARGET_2" >> "$ADDRS"; fi
 _pass "test config created"
 
 # ============================================================
-# Phase 5: Test Deposit Detection (Single Scan)
+# Phase 7: Test Deposit Detection (Single Scan)
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 5: Test deposit detection"
+echo "Phase 7: Test deposit detection"
 echo "══════════════════════════════════════════════════════"
 
 SCAN_OUT=$(cargo run -q -- --config "$CONFIG" --addresses "$ADDRS" --format json 2>/dev/null)
@@ -255,30 +552,89 @@ if [ -n "$ANVIL_TARGET" ]; then
     else
         _fail "EVM ERC-20 MTK: expected 50, got '${MTK_AMT:-none}'"
     fi
+
+    FTK_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "anvil" and .asset == "FTK") | .amount_clean' 2>/dev/null | head -1)
+    if [ "$FTK_AMT" = "90" ]; then
+        _pass "EVM FeeToken FTK: $FTK_AMT FTK net detected"
+    else
+        _fail "EVM FeeToken FTK: expected 90, got '${FTK_AMT:-none}'"
+    fi
+
+    FAIL_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "anvil" and .asset == "FTK_FAIL") | .amount_clean' 2>/dev/null | head -1)
+    if [ -z "$FAIL_AMT" ] || [ "$FAIL_AMT" = "null" ]; then
+        _pass "EVM failed transaction: reverted transfer correctly ignored"
+    else
+        _fail "EVM failed transaction: detected reverted transfer ($FAIL_AMT FTK_FAIL)"
+    fi
+fi
+
+# Verify Solana
+if $SOLANA_VALIDATOR_UP && [ -n "$SOL_TARGET" ]; then
+    SOL_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "solana" and .asset == "Native" and .to_address == "'$SOL_TARGET'") | .amount_clean' 2>/dev/null | head -1)
+    if [ "$SOL_AMT" = "2.5" ]; then
+        _pass "Solana native SOL: $SOL_AMT SOL detected"
+    else
+        _fail "Solana native SOL: expected 2.5, got '${SOL_AMT:-none}'"
+    fi
+
+    if $SOLANA_SPL_AVAILABLE && [ -n "$SPL_MINT" ]; then
+        SPL_AMT=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "solana" and .asset == "SPL_MOCK" and .to_address == "'$SOL_TARGET'") | .amount_clean' 2>/dev/null | head -1)
+        if [ "$SPL_AMT" = "15.5" ]; then
+            _pass "Solana SPL token: $SPL_AMT SPL_MOCK detected"
+        else
+            _fail "Solana SPL token: expected 15.5, got '${SPL_AMT:-none}'"
+        fi
+    fi
+fi
+
+if [ -n "${ANVIL_PID:-}" ] && [ -n "${SNAPSHOT_ID:-}" ]; then
+    echo "Simulating EVM reorg via anvil snapshot revert..."
+    curl -s -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"evm_revert","params":["'$SNAPSHOT_ID'"],"id":1}' \
+        "$ANVIL_RPC" &>/dev/null
+    cast send --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" "$ANVIL_TARGET" --value 2ether &>/dev/null
+    # The snapshot was taken before the original ERC-20 transfers. Re-send the
+    # token deposits on the canonical post-reorg chain so later CLI/API JSON
+    # output still demonstrates all configured Anvil assets, not only Native.
+    cast send "$TOKEN_ADDR" "transfer(address,uint256)" "$ANVIL_TARGET" 50000000 --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" &>/dev/null
+    cast send "$FEE_TOKEN_ADDR" "transfer(address,uint256)" "$ANVIL_TARGET" 100000000 --rpc-url "$ANVIL_RPC" --private-key "$SENDER_KEY" &>/dev/null
+    sleep 2
+    REORG_SCAN=$(cargo run -q -- --config "$CONFIG" --addresses "$ADDRS" --format json 2>/dev/null)
+    REORG_AMT=$(echo "$REORG_SCAN" | jq -r '.[] | select(.chain == "anvil" and .asset == "Native") | .amount_clean' 2>/dev/null | head -1)
+    if [ "$REORG_AMT" = "2" ]; then
+        _pass "EVM reorg: canonical 2 ETH deposit detected"
+    else
+        _fail "EVM reorg: expected 2 ETH, got '${REORG_AMT:-none}'"
+    fi
 fi
 
 # Verify BTC
-if $BTC_UP && [ -n "$BTC_TARGET" ]; then
-    BTC_RAW=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "bitcoin" and .asset == "Native") | .amount_raw' 2>/dev/null | head -1)
-    BTC_CLEAN=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "bitcoin" and .asset == "Native") | .amount_clean' 2>/dev/null | head -1)
-    if [ "$BTC_RAW" = "12345678" ]; then
-        _pass "BTC precision: raw=$BTC_RAW sats"
+if $BTC_UP && [ -n "$BTC_TARGET_1" ] && [ -n "$BTC_TARGET_2" ]; then
+    BTC_RAW_1=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "bitcoin" and .to_address == "'$BTC_TARGET_1'") | .amount_raw' 2>/dev/null | head -1)
+    BTC_CLEAN_1=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "bitcoin" and .to_address == "'$BTC_TARGET_1'") | .amount_clean' 2>/dev/null | head -1)
+
+    BTC_RAW_2=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "bitcoin" and .to_address == "'$BTC_TARGET_2'") | .amount_raw' 2>/dev/null | head -1)
+    BTC_CLEAN_2=$(echo "$SCAN_OUT" | jq -r '.[] | select(.chain == "bitcoin" and .to_address == "'$BTC_TARGET_2'") | .amount_clean' 2>/dev/null | head -1)
+
+    if [ "$BTC_RAW_1" = "12345678" ] && [ "$BTC_RAW_2" = "5000000" ]; then
+        _pass "BTC multi-output precision: raw targets resolved correctly (12345678 and 5000000 sats)"
     else
-        _fail "BTC precision raw: expected 12345678, got '${BTC_RAW:-none}'"
+        _fail "BTC multi-output precision raw: expected 12345678/5000000, got '${BTC_RAW_1:-none}'/'${BTC_RAW_2:-none}'"
     fi
-    if [ "$BTC_CLEAN" = "0.12345678" ]; then
-        _pass "BTC precision: clean=$BTC_CLEAN BTC"
+
+    if [ "$BTC_CLEAN_1" = "0.12345678" ] && [ "$BTC_CLEAN_2" = "0.05" ]; then
+        _pass "BTC multi-output precision: clean targets resolved correctly (0.12345678 and 0.05 BTC)"
     else
-        _fail "BTC precision clean: expected 0.12345678, got '${BTC_CLEAN:-none}'"
+        _fail "BTC multi-output precision clean: expected 0.12345678/0.05, got '${BTC_CLEAN_1:-none}'/'${BTC_CLEAN_2:-none}'"
     fi
 fi
 
 # ============================================================
-# Phase 6: Test CSV output
+# Phase 8: Test CSV output
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 6: Test CSV output"
+echo "Phase 8: Test CSV output"
 echo "══════════════════════════════════════════════════════"
 
 CSV_OUT="$TESTDIR/deposits.csv"
@@ -296,11 +652,11 @@ else
 fi
 
 # ============================================================
-# Phase 7: Start Daemon + Test All API Endpoints
+# Phase 9: Start Daemon + Test All API Endpoints
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 7: Start daemon + test API endpoints"
+echo "Phase 9: Start daemon + test API endpoints"
 echo "══════════════════════════════════════════════════════"
 
 RUST_LOG=info cargo run -q -- --config "$CONFIG" --addresses "$ADDRS" --api-port "$API_PORT" --watch --interval 5 &> "$LOG" &
@@ -322,11 +678,6 @@ stop_daemon() {
         sleep 2
         kill -9 "$DAEMON_PID" 2>/dev/null || true
     fi
-}
-trap "stop_daemon; cleanup_chains" EXIT
-cleanup_chains() {
-    docker rm -f "$BTC_CONTAINER" 2>/dev/null || true
-    if [ -n "${ANVIL_PID:-}" ]; then kill "$ANVIL_PID" 2>/dev/null || true; fi
 }
 
 # ---------- GET / ----------
@@ -374,11 +725,24 @@ curl -s -X DELETE "$API/v1/addresses/0x1111222233334444555566667777888899990000"
     _pass "DELETE /v1/addresses/:addr" || _fail "DELETE /v1/addresses/:addr"
 
 # ---------- GET /v1/deposits ----------
-DEPO_COUNT=$(curl -s "$API/v1/deposits" | jq '.meta.total' 2>/dev/null)
+DEPO_COUNT=0
+for _ in $(seq 1 20); do
+    DEPO_COUNT=$(curl -s "$API/v1/deposits" | jq '.meta.total' 2>/dev/null)
+    [ "${DEPO_COUNT:-0}" -gt 0 ] && break
+    sleep 1
+done
 if [ "${DEPO_COUNT:-0}" -gt 0 ]; then
     _pass "GET /v1/deposits: $DEPO_COUNT deposits"
 else
     _fail "GET /v1/deposits: empty"
+fi
+
+# ---------- GET /v1/balances ----------
+BAL_COUNT=$(curl -s "$API/v1/balances" | jq '.meta.total' 2>/dev/null)
+if [ "${BAL_COUNT:-0}" -gt 0 ]; then
+    _pass "GET /v1/balances: $BAL_COUNT balances"
+else
+    _fail "GET /v1/balances: empty"
 fi
 
 # ---------- POST /v1/chains ----------
@@ -434,11 +798,11 @@ else
 fi
 
 # ============================================================
-# Phase 8: Test CLI Commands
+# Phase 10: Test CLI Commands
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 8: Test CLI commands"
+echo "Phase 10: Test CLI commands"
 echo "══════════════════════════════════════════════════════"
 
 # Copy config for CLI tests
@@ -486,11 +850,30 @@ cargo run -q -- --version 2>/dev/null | rg -q "rustplorer" && \
     _pass "CLI --version" || _fail "CLI --version"
 
 # ============================================================
-# Phase 9: Graceful Shutdown
+# Phase 11: Run solana_local integration tests
+# ============================================================
+if $SOLANA_VALIDATOR_UP; then
+    echo ""
+    echo "══════════════════════════════════════════════════════"
+    echo "Phase 11: Run solana_local integration tests"
+    echo "══════════════════════════════════════════════════════"
+
+    cd "$PROJECT_DIR"
+    if RUST_LOG=info cargo test --test solana_local -- --nocapture 2>&1; then
+        _pass "solana_local integration tests"
+    else
+        _fail "solana_local integration tests"
+    fi
+else
+    _skip "solana-test-validator not available (solana_local tests skipped)"
+fi
+
+# ============================================================
+# Phase 12: Graceful Shutdown
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 9: Graceful shutdown"
+echo "Phase 12: Graceful shutdown"
 echo "══════════════════════════════════════════════════════"
 
 kill -INT "$DAEMON_PID" 2>/dev/null || true
@@ -509,15 +892,17 @@ else
     _fail "shutdown message missing from log"
 fi
 
+DAEMON_PID=""  # reset so cleanup trap doesn't double-kill
+
 # ============================================================
-# Phase 10: Docker Build + API Test
+# Phase 13: Docker Build + API Test
 # ============================================================
 echo ""
 echo "══════════════════════════════════════════════════════"
-echo "Phase 10: Docker build + run + API"
+echo "Phase 13: Docker build + run + API"
 echo "══════════════════════════════════════════════════════"
 
-cd /Users/llama/Developer/rustplorer
+cd "$PROJECT_DIR"
 echo "Building Docker image..."
 if docker build -t rustplorer:e2e -f Dockerfile . &>/tmp/docker-build.log; then
     _pass "docker build"
@@ -597,9 +982,7 @@ echo "════════════════════════�
 echo "Cleanup"
 echo "══════════════════════════════════════════════════════"
 
-stop_daemon
-docker rm -f "$BTC_CONTAINER" &>/dev/null || true
-if [ -n "${ANVIL_PID:-}" ]; then kill "$ANVIL_PID" 2>/dev/null || true; fi
+cleanup_chains
 rm -rf "$TESTDIR" "$WORKDIR"
 _pass "cleanup complete"
 

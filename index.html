@@ -28,6 +28,11 @@
                 --danger-dim: rgba(255, 77, 109, 0.1);
                 --danger-mid: rgba(255, 77, 109, 0.22);
                 --warn: #ffaa40;
+                --warn-dim: rgba(255, 170, 64, 0.12);
+                --warn-mid: rgba(255, 170, 64, 0.25);
+                --info: #60a5fa;
+                --info-dim: rgba(96, 165, 250, 0.1);
+                --info-mid: rgba(96, 165, 250, 0.22);
                 --mono: "IBM Plex Mono", monospace;
                 --sans: "DM Sans", sans-serif;
                 --r-sm: 6px;
@@ -55,6 +60,11 @@
                 --danger-dim: rgba(214, 48, 80, 0.09);
                 --danger-mid: rgba(214, 48, 80, 0.18);
                 --warn: #d07820;
+                --warn-dim: rgba(208, 120, 32, 0.09);
+                --warn-mid: rgba(208, 120, 32, 0.18);
+                --info: #2563eb;
+                --info-dim: rgba(37, 99, 235, 0.09);
+                --info-mid: rgba(37, 99, 235, 0.18);
                 --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07);
                 --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.11);
                 --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.16);
@@ -92,6 +102,10 @@
             button {
                 cursor: pointer;
             }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
 
             /* ========= SCROLLBAR ========= */
             ::-webkit-scrollbar {
@@ -118,6 +132,16 @@
                 to {
                     opacity: 1;
                     transform: translateX(0);
+                }
+            }
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    transform: translateY(-6px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
                 }
             }
             @keyframes slideUp {
@@ -173,6 +197,23 @@
                     background: var(--bg2);
                 }
             }
+            @keyframes notifyBounce {
+                0%,
+                100% {
+                    transform: scale(1);
+                }
+                50% {
+                    transform: scale(1.15);
+                }
+            }
+            @keyframes progressBar {
+                from {
+                    width: 100%;
+                }
+                to {
+                    width: 0%;
+                }
+            }
 
             /* ========= APP SHELL ========= */
             .app {
@@ -194,14 +235,12 @@
                 flex-shrink: 0;
                 gap: 10px;
             }
-
             .header-brand {
                 display: flex;
                 align-items: center;
                 gap: 9px;
                 min-width: 0;
             }
-
             .brand-mark {
                 width: 28px;
                 height: 28px;
@@ -213,13 +252,11 @@
                 flex-shrink: 0;
                 box-shadow: 0 0 12px var(--accent-mid);
             }
-
             .brand-mark svg {
                 width: 15px;
                 height: 15px;
                 color: #07080b;
             }
-
             .brand-name {
                 font-size: 15px;
                 font-weight: 700;
@@ -228,7 +265,6 @@
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
-
             .brand-dim {
                 color: var(--text2);
                 font-weight: 400;
@@ -238,8 +274,11 @@
                 flex: 1;
                 display: flex;
                 justify-content: center;
+                align-items: center;
+                gap: 8px;
             }
 
+            /* ========= STATUS PILL ========= */
             .status-pill {
                 display: inline-flex;
                 align-items: center;
@@ -257,7 +296,6 @@
                 cursor: default;
                 user-select: none;
             }
-
             .status-pip {
                 width: 6px;
                 height: 6px;
@@ -268,7 +306,6 @@
                     background 0.3s,
                     box-shadow 0.3s;
             }
-
             .status-pill.conn {
                 border-color: var(--accent-mid);
                 color: var(--text1);
@@ -277,7 +314,6 @@
                 background: var(--accent);
                 box-shadow: 0 0 8px var(--accent);
             }
-
             .status-pill.disc {
                 border-color: var(--danger-mid);
                 color: var(--text1);
@@ -286,10 +322,19 @@
                 background: var(--danger);
                 box-shadow: 0 0 8px var(--danger);
             }
-
             .status-pill.cing .status-pip {
                 background: var(--warn);
                 animation: pulse 1.2s infinite;
+            }
+
+            /* Poll countdown ring */
+            .poll-ring {
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+            }
+            .poll-ring circle {
+                transition: stroke-dashoffset 0.3s linear;
             }
 
             .header-right {
@@ -311,6 +356,7 @@
                 border: 1px solid transparent;
                 color: var(--text1);
                 transition: all 0.15s;
+                position: relative;
             }
             .icon-btn:hover {
                 background: var(--bg3);
@@ -341,7 +387,6 @@
                 height: 13px;
                 flex-shrink: 0;
             }
-
             .btn-accent {
                 background: var(--accent);
                 color: #07080b;
@@ -354,7 +399,6 @@
                 transform: none;
                 opacity: 0.95;
             }
-
             .btn-ghost {
                 background: transparent;
                 color: var(--text1);
@@ -365,7 +409,6 @@
                 color: var(--text0);
                 border-color: var(--border-hi);
             }
-
             .btn-danger {
                 background: var(--danger);
                 color: #fff;
@@ -373,7 +416,6 @@
             .btn-danger:hover {
                 opacity: 0.85;
             }
-
             .btn-sm {
                 padding: 5px 10px;
                 font-size: 11px;
@@ -386,7 +428,7 @@
                 overflow: hidden;
             }
 
-            /* ========= NAV SIDEBAR (desktop) ========= */
+            /* ========= NAV SIDEBAR ========= */
             .nav-sidebar {
                 width: 220px;
                 background: var(--bg1);
@@ -398,7 +440,6 @@
                 flex-shrink: 0;
                 overflow-y: auto;
             }
-
             .nav-label {
                 font-size: 9.5px;
                 font-weight: 700;
@@ -407,7 +448,6 @@
                 color: var(--text2);
                 padding: 8px 10px 4px;
             }
-
             .nav-item {
                 display: flex;
                 align-items: center;
@@ -437,7 +477,6 @@
                 color: var(--accent);
                 border-color: var(--accent-mid);
             }
-
             .nav-badge {
                 margin-left: auto;
                 font-size: 10px;
@@ -453,11 +492,39 @@
                 background: var(--accent-mid);
                 color: var(--accent);
             }
-
             .nav-sep {
                 height: 1px;
                 background: var(--border);
                 margin: 6px 4px;
+            }
+
+            /* ========= STATS FOOTER IN SIDEBAR ========= */
+            .sidebar-stats {
+                margin-top: auto;
+                padding: 8px 4px 0;
+                border-top: 1px solid var(--border);
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .stat-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 5px 10px;
+                border-radius: var(--r-sm);
+                font-size: 10px;
+                font-family: var(--mono);
+            }
+            .stat-lbl {
+                color: var(--text2);
+            }
+            .stat-val {
+                color: var(--text1);
+                font-weight: 600;
+            }
+            .stat-val.accent {
+                color: var(--accent);
             }
 
             /* ========= BOTTOM NAV (mobile) ========= */
@@ -472,12 +539,10 @@
                 border-top: 1px solid var(--border);
                 padding-bottom: env(safe-area-inset-bottom, 0);
             }
-
             .bottom-nav-inner {
                 display: flex;
                 height: 56px;
             }
-
             .bottom-nav-btn {
                 flex: 1;
                 display: flex;
@@ -490,8 +555,8 @@
                 color: var(--text2);
                 background: none;
                 border: none;
-                transition: color 0.15s;
                 position: relative;
+                transition: color 0.15s;
             }
             .bottom-nav-btn svg {
                 width: 20px;
@@ -500,33 +565,29 @@
             .bottom-nav-btn.active {
                 color: var(--accent);
             }
-
-            .bottom-badge {
+            .mobile-badge {
                 position: absolute;
-                top: 5px;
-                right: calc(50% - 18px);
-                background: var(--accent);
-                color: #07080b;
+                top: 6px;
+                right: calc(50% - 14px);
                 font-size: 9px;
                 font-weight: 800;
                 font-family: var(--mono);
-                min-width: 16px;
-                height: 16px;
-                border-radius: 8px;
-                padding: 0 3px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                padding: 1px 4px;
+                border-radius: 99px;
+                background: var(--accent);
+                color: #07080b;
+                min-width: 14px;
+                text-align: center;
+                display: none;
             }
 
-            /* ========= VIEWS ========= */
+            /* ========= VIEW AREA ========= */
             .view-area {
                 flex: 1;
+                overflow: hidden;
                 display: flex;
                 flex-direction: column;
-                overflow: hidden;
             }
-
             .view {
                 display: none;
                 flex: 1;
@@ -543,25 +604,22 @@
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                padding: 13px 18px;
+                padding: 11px 18px;
                 border-bottom: 1px solid var(--border);
                 background: var(--bg1);
                 flex-shrink: 0;
                 gap: 10px;
             }
-
             .view-hdr-left {
                 display: flex;
-                align-items: baseline;
+                align-items: center;
                 gap: 8px;
             }
-
             .view-title {
                 font-size: 14px;
                 font-weight: 700;
                 letter-spacing: -0.015em;
             }
-
             .view-pill {
                 font-size: 10px;
                 font-weight: 700;
@@ -571,47 +629,269 @@
                 background: var(--accent-dim);
                 color: var(--accent);
             }
-
             .view-hdr-right {
                 display: flex;
                 gap: 6px;
+                align-items: center;
+            }
+
+            /* ========= FILTER BAR ========= */
+            .filter-bar {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 16px;
+                border-bottom: 1px solid var(--border);
+                background: var(--bg1);
+                flex-shrink: 0;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+            .filter-bar::-webkit-scrollbar {
+                display: none;
+            }
+
+            .search-wrap {
+                position: relative;
+                flex: 1;
+                min-width: 120px;
+                max-width: 260px;
+            }
+            .search-ico {
+                position: absolute;
+                left: 8px;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 13px;
+                height: 13px;
+                color: var(--text2);
+                pointer-events: none;
+            }
+            .search-inp {
+                width: 100%;
+                padding: 5px 8px 5px 28px;
+                background: var(--bg2);
+                border: 1px solid var(--border);
+                border-radius: var(--r-sm);
+                font-size: 12px;
+                color: var(--text0);
+                outline: none;
+                transition: border-color 0.15s;
+            }
+            .search-inp::placeholder {
+                color: var(--text2);
+            }
+            .search-inp:focus {
+                border-color: var(--accent-mid);
+            }
+            .search-clear {
+                position: absolute;
+                right: 6px;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: var(--bg3);
+                border: none;
+                color: var(--text2);
+                font-size: 10px;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.12s;
+            }
+            .search-clear:hover {
+                background: var(--danger-mid);
+                color: var(--danger);
+            }
+            .search-clear.visible {
+                display: flex;
+            }
+
+            .filter-sep {
+                width: 1px;
+                height: 16px;
+                background: var(--border);
+                flex-shrink: 0;
+            }
+
+            .filter-select {
+                padding: 5px 8px;
+                background: var(--bg2);
+                border: 1px solid var(--border);
+                border-radius: var(--r-sm);
+                font-size: 11px;
+                font-family: var(--mono);
+                color: var(--text1);
+                outline: none;
+                cursor: pointer;
+                transition: border-color 0.15s;
+                white-space: nowrap;
+            }
+            .filter-select:focus {
+                border-color: var(--accent-mid);
+            }
+            .filter-select.active {
+                border-color: var(--accent-mid);
+                color: var(--accent);
+                background: var(--accent-dim);
+            }
+
+            .filter-chain-pills {
+                display: flex;
+                gap: 4px;
+                flex-shrink: 0;
+            }
+            .chain-pill {
+                padding: 4px 9px;
+                border-radius: 99px;
+                border: 1px solid var(--border);
+                background: var(--bg2);
+                font-size: 10px;
+                font-weight: 700;
+                font-family: var(--mono);
+                color: var(--text2);
+                cursor: pointer;
+                transition: all 0.15s;
+                white-space: nowrap;
+            }
+            .chain-pill:hover {
+                border-color: var(--border-hi);
+                color: var(--text1);
+            }
+            .chain-pill.active {
+                background: var(--accent-dim);
+                border-color: var(--accent-mid);
+                color: var(--accent);
+            }
+
+            .filter-results {
+                font-size: 11px;
+                font-family: var(--mono);
+                color: var(--text2);
+                white-space: nowrap;
+                flex-shrink: 0;
+                margin-left: auto;
+            }
+
+            /* ========= NEW DEPOSIT BANNER ========= */
+            .new-banner {
+                display: none;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                padding: 8px 16px;
+                background: var(--accent-dim);
+                border-bottom: 1px solid var(--accent-mid);
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--accent);
+                cursor: pointer;
+                flex-shrink: 0;
+                animation: slideDown 0.2s ease;
+                transition: opacity 0.2s;
+            }
+            .new-banner:hover {
+                opacity: 0.8;
+            }
+            .new-banner.visible {
+                display: flex;
+            }
+            .new-banner-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--accent);
+                animation: pulse 1s infinite;
             }
 
             /* ========= DEPOSIT FEED ========= */
             .deposit-scroll {
                 flex: 1;
                 overflow-y: auto;
-                padding: 12px 16px;
+                padding: 10px 14px;
                 display: flex;
                 flex-direction: column;
                 gap: 6px;
             }
 
             .deposit-card {
-                display: grid;
-                grid-template-columns: 38px 1fr auto;
-                gap: 12px;
-                align-items: flex-start;
                 background: var(--bg2);
                 border: 1px solid var(--border);
                 border-radius: var(--r-md);
-                padding: 13px 14px;
                 transition:
                     border-color 0.15s,
                     background 0.15s;
                 animation: slideIn 0.25s ease;
-                cursor: default;
+                overflow: hidden;
             }
-
             .deposit-card:hover {
                 border-color: var(--border-hi);
                 background: var(--bg3);
             }
-
             .deposit-card.is-new {
                 animation:
                     slideIn 0.25s ease,
-                    flashNew 2s ease 0s 1 forwards;
+                    flashNew 2.5s ease 0s 1 forwards;
+            }
+            .deposit-card-main {
+                display: grid;
+                grid-template-columns: 38px 1fr auto;
+                gap: 12px;
+                align-items: flex-start;
+                padding: 13px 14px;
+                cursor: pointer;
+            }
+
+            /* Deposit expand section */
+            .deposit-detail {
+                display: none;
+                padding: 0 14px 12px 14px;
+                border-top: 1px solid var(--border);
+                background: var(--bg2);
+                animation: fadeIn 0.15s ease;
+            }
+            .deposit-card.expanded .deposit-detail {
+                display: block;
+            }
+            .deposit-detail-inner {
+                padding-top: 10px;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+            .detail-field {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            .detail-lbl {
+                font-size: 9px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.07em;
+                color: var(--text2);
+            }
+            .detail-val {
+                font-size: 11px;
+                font-family: var(--mono);
+                color: var(--text1);
+                word-break: break-all;
+                cursor: pointer;
+                transition: color 0.12s;
+            }
+            .detail-val:hover {
+                color: var(--text0);
+            }
+            .detail-val.full {
+                grid-column: 1 / -1;
+            }
+            .detail-actions {
+                padding-top: 10px;
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
             }
 
             /* Chain badge */
@@ -670,7 +950,6 @@
             .deposit-body {
                 min-width: 0;
             }
-
             .deposit-headline {
                 display: flex;
                 align-items: center;
@@ -678,7 +957,6 @@
                 flex-wrap: wrap;
                 margin-bottom: 5px;
             }
-
             .deposit-amt {
                 font-size: 17px;
                 font-weight: 700;
@@ -740,7 +1018,6 @@
                 flex-direction: column;
                 gap: 3px;
             }
-
             .deposit-row {
                 display: flex;
                 align-items: center;
@@ -749,7 +1026,6 @@
                 font-family: var(--mono);
                 color: var(--text2);
             }
-
             .dep-lbl {
                 font-size: 9.5px;
                 font-family: var(--sans);
@@ -759,7 +1035,6 @@
                 color: var(--text2);
                 min-width: 22px;
             }
-
             .hash-val {
                 color: var(--text1);
                 cursor: pointer;
@@ -771,10 +1046,18 @@
             .hash-val:hover {
                 color: var(--text0);
             }
-
             .dep-arrow {
                 color: var(--text2);
                 font-size: 10px;
+            }
+            .addr-label-tag {
+                font-size: 9px;
+                font-weight: 700;
+                padding: 1px 5px;
+                border-radius: 3px;
+                background: var(--accent-dim);
+                color: var(--accent);
+                font-family: var(--sans);
             }
 
             .deposit-side {
@@ -784,7 +1067,6 @@
                 gap: 4px;
                 flex-shrink: 0;
             }
-
             .dep-time {
                 font-size: 11px;
                 font-family: var(--mono);
@@ -796,6 +1078,14 @@
                 font-family: var(--mono);
                 color: var(--text2);
                 white-space: nowrap;
+            }
+            .dep-expand-icon {
+                color: var(--text2);
+                margin-top: 4px;
+                transition: transform 0.2s;
+            }
+            .deposit-card.expanded .dep-expand-icon {
+                transform: rotate(180deg);
             }
 
             /* ========= EMPTY STATE ========= */
@@ -810,7 +1100,6 @@
                 text-align: center;
                 animation: fadeIn 0.3s ease;
             }
-
             .empty-ico {
                 width: 52px;
                 height: 52px;
@@ -846,10 +1135,9 @@
                 flex-direction: column;
                 gap: 6px;
             }
-
             .addr-card {
                 display: flex;
-                align-items: center;
+                align-items: flex-start;
                 gap: 12px;
                 background: var(--bg2);
                 border: 1px solid var(--border);
@@ -864,7 +1152,6 @@
                 border-color: var(--border-hi);
                 background: var(--bg3);
             }
-
             .addr-avatar {
                 width: 34px;
                 height: 34px;
@@ -880,12 +1167,10 @@
                 color: var(--accent);
                 flex-shrink: 0;
             }
-
             .addr-body {
                 flex: 1;
                 min-width: 0;
             }
-
             .addr-lbl {
                 font-size: 13px;
                 font-weight: 600;
@@ -895,7 +1180,6 @@
                 text-overflow: ellipsis;
                 margin-bottom: 2px;
             }
-
             .addr-val {
                 font-size: 11px;
                 font-family: var(--mono);
@@ -909,7 +1193,53 @@
             .addr-val:hover {
                 color: var(--text1);
             }
-
+            .addr-stats-row {
+                display: flex;
+                gap: 10px;
+                margin-top: 5px;
+                flex-wrap: wrap;
+            }
+            .addr-stat {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 10px;
+                font-family: var(--mono);
+            }
+            .addr-stat-lbl {
+                color: var(--text2);
+            }
+            .addr-stat-val {
+                color: var(--text1);
+                font-weight: 600;
+            }
+            .addr-stat-val.accent {
+                color: var(--accent);
+            }
+            .addr-balances {
+                margin-top: 6px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+            .bal-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 3px;
+                padding: 2px 7px;
+                border-radius: 99px;
+                border: 1px solid var(--border);
+                background: var(--bg3);
+                font-size: 10px;
+                font-family: var(--mono);
+                color: var(--text1);
+            }
+            .bal-chip .chain-dot {
+                width: 5px;
+                height: 5px;
+                border-radius: 50%;
+                flex-shrink: 0;
+            }
             .addr-acts {
                 display: flex;
                 gap: 4px;
@@ -925,7 +1255,6 @@
                 flex-direction: column;
                 gap: 8px;
             }
-
             .chain-card {
                 background: var(--bg2);
                 border: 1px solid var(--border);
@@ -937,39 +1266,33 @@
             .chain-card:hover {
                 border-color: var(--border-hi);
             }
-
             .chain-card-hdr {
                 display: flex;
                 align-items: center;
                 gap: 12px;
                 padding: 12px 14px;
             }
-
             .chain-card-info {
                 flex: 1;
                 min-width: 0;
             }
-
             .chain-card-name {
                 font-size: 13px;
                 font-weight: 700;
                 text-transform: capitalize;
                 margin-bottom: 2px;
             }
-
             .chain-caip2 {
                 font-size: 10px;
                 font-family: var(--mono);
                 color: var(--text2);
             }
-
             .chain-card-right {
                 display: flex;
                 align-items: center;
                 gap: 7px;
                 flex-shrink: 0;
             }
-
             .asset-count-pill {
                 font-size: 10px;
                 font-weight: 700;
@@ -979,20 +1302,17 @@
                 background: var(--bg3);
                 color: var(--text2);
             }
-
             .chain-sep {
                 height: 1px;
                 background: var(--border);
                 margin: 0 14px;
             }
-
             .chain-assets-row {
                 padding: 10px 14px;
                 display: flex;
                 flex-wrap: wrap;
                 gap: 6px;
             }
-
             .asset-chip {
                 display: inline-flex;
                 align-items: center;
@@ -1016,7 +1336,6 @@
                 border-color: var(--accent-mid);
                 color: var(--accent);
             }
-
             .chip-del {
                 display: flex;
                 align-items: center;
@@ -1040,7 +1359,6 @@
                 height: 9px;
                 pointer-events: none;
             }
-
             .chain-rpc-section {
                 padding: 2px 14px 12px;
             }
@@ -1056,190 +1374,160 @@
                 font-size: 10px;
                 font-family: var(--mono);
                 color: var(--text2);
-                white-space: nowrap;
+                padding: 2px 0;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                margin-bottom: 2px;
+                white-space: nowrap;
             }
 
             /* ========= MODAL ========= */
             .modal-backdrop {
+                display: none;
                 position: fixed;
                 inset: 0;
-                z-index: 800;
-                background: rgba(0, 0, 0, 0.62);
-                backdrop-filter: blur(6px);
-                display: none;
+                background: rgba(0, 0, 0, 0.65);
+                z-index: 1000;
+                backdrop-filter: blur(4px);
                 align-items: center;
                 justify-content: center;
-                padding: 16px;
-                animation: fadeIn 0.15s ease;
+                padding: 20px;
             }
             .modal-backdrop.open {
                 display: flex;
             }
-
             .modal {
-                background: var(--bg2);
+                background: var(--bg1);
                 border: 1px solid var(--border-hi);
                 border-radius: var(--r-lg);
                 width: 100%;
-                max-width: 460px;
-                max-height: 88svh;
-                display: flex;
-                flex-direction: column;
+                max-width: 520px;
                 box-shadow: var(--shadow-lg);
                 animation: scaleIn 0.2s ease;
                 overflow: hidden;
+                max-height: 90svh;
+                display: flex;
+                flex-direction: column;
             }
-
-            .modal-wide {
-                max-width: 580px;
-            }
-
             .modal-hdr {
                 display: flex;
                 align-items: flex-start;
-                justify-content: space-between;
-                padding: 18px 20px 15px;
-                border-bottom: 1px solid var(--border);
                 gap: 12px;
+                padding: 18px 18px 0;
             }
-
             .modal-hdr-inner {
+                flex: 1;
             }
             .modal-ttl {
                 font-size: 15px;
                 font-weight: 700;
-                letter-spacing: -0.01em;
+                letter-spacing: -0.015em;
+                margin-bottom: 3px;
             }
             .modal-sub {
-                font-size: 11.5px;
+                font-size: 12px;
                 color: var(--text2);
-                margin-top: 2px;
+                line-height: 1.5;
             }
-
             .modal-body {
-                padding: 20px;
+                padding: 16px 18px;
                 overflow-y: auto;
-                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
             }
-
             .modal-footer {
+                padding: 14px 18px;
+                border-top: 1px solid var(--border);
                 display: flex;
                 justify-content: flex-end;
                 gap: 8px;
-                padding: 13px 20px;
-                border-top: 1px solid var(--border);
+                flex-shrink: 0;
             }
 
-            /* Delete modal */
-            .del-modal-icon {
-                width: 42px;
-                height: 42px;
-                border-radius: var(--r-md);
-                background: var(--danger-dim);
-                border: 1px solid var(--danger-mid);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin-bottom: 14px;
-            }
-            .del-modal-icon svg {
-                width: 20px;
-                height: 20px;
-                color: var(--danger);
-            }
-            .del-modal-msg {
-                font-size: 13px;
-                line-height: 1.7;
-                color: var(--text1);
-            }
-
-            /* ========= FORM ========= */
+            /* Form fields */
             .field {
-                margin-bottom: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
             }
-            .field:last-child {
-                margin-bottom: 0;
+            .field-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
             }
-
             .field-lbl {
-                display: block;
                 font-size: 10px;
                 font-weight: 700;
-                letter-spacing: 0.06em;
+                letter-spacing: 0.05em;
                 text-transform: uppercase;
-                color: var(--text2);
-                margin-bottom: 6px;
+                color: var(--text1);
+                display: flex;
+                align-items: center;
+                gap: 6px;
             }
-
-            .field-inp,
-            .field-ta {
-                width: 100%;
-                padding: 9px 12px;
-                font-size: 13px;
+            .field-inp {
+                padding: 8px 10px;
+                background: var(--bg2);
+                border: 1px solid var(--border-hi);
                 border-radius: var(--r-sm);
-                border: 1px solid var(--border);
-                background: var(--bg1);
+                font-size: 13px;
                 color: var(--text0);
                 outline: none;
-                transition:
-                    border-color 0.15s,
-                    box-shadow 0.15s;
-                -webkit-appearance: none;
+                transition: border-color 0.15s;
+                width: 100%;
             }
-            .field-inp:focus,
-            .field-ta:focus {
-                border-color: var(--accent);
+            .field-inp:focus {
+                border-color: var(--accent-mid);
                 box-shadow: 0 0 0 3px var(--accent-dim);
             }
-            .field-inp::placeholder,
-            .field-ta::placeholder {
+            .field-inp::placeholder {
                 color: var(--text2);
             }
             .field-inp.mono-inp {
                 font-family: var(--mono);
                 font-size: 12px;
             }
-
-            .field-ta {
-                resize: vertical;
-                min-height: 72px;
-                font-family: var(--mono);
-                font-size: 12px;
-                line-height: 1.6;
+            select.field-inp {
+                cursor: pointer;
+                appearance: none;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234d5470' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: right 8px center;
+                background-size: 14px;
+                padding-right: 28px;
             }
-
             .field-hint {
                 font-size: 11px;
                 color: var(--text2);
-                margin-top: 5px;
+                line-height: 1.5;
+            }
+            textarea.field-inp {
+                resize: vertical;
+                min-height: 72px;
                 line-height: 1.5;
             }
 
-            .field-row {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 12px;
-            }
-
-            .form-section-hdr {
-                font-size: 10px;
-                font-weight: 700;
-                letter-spacing: 0.07em;
-                text-transform: uppercase;
-                color: var(--text2);
-                margin: 20px 0 12px;
+            /* Delete modal */
+            .del-modal-icon {
+                width: 44px;
+                height: 44px;
+                margin: 0 auto 12px;
+                background: var(--danger-dim);
+                border-radius: var(--r-md);
                 display: flex;
                 align-items: center;
-                gap: 10px;
+                justify-content: center;
+                color: var(--danger);
             }
-            .form-section-hdr::after {
-                content: "";
-                flex: 1;
-                height: 1px;
-                background: var(--border);
+            .del-modal-icon svg {
+                width: 20px;
+                height: 20px;
+            }
+            .del-modal-msg {
+                text-align: center;
+                font-size: 13px;
+                line-height: 1.6;
+                color: var(--text1);
             }
 
             /* ========= TOAST ========= */
@@ -1254,7 +1542,6 @@
                 max-width: 300px;
                 pointer-events: none;
             }
-
             .toast {
                 display: flex;
                 align-items: center;
@@ -1281,7 +1568,6 @@
                 border-color: var(--border-hi);
                 color: var(--text1);
             }
-
             .toast-pip {
                 width: 6px;
                 height: 6px;
@@ -1297,7 +1583,6 @@
             .toast.info .toast-pip {
                 background: var(--text2);
             }
-
             .toast.out {
                 animation: slideUp 0.2s ease reverse;
             }
@@ -1320,6 +1605,17 @@
                 margin-left: auto;
                 display: flex;
                 gap: 14px;
+            }
+            /* Poll progress bar */
+            .poll-progress {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 1px;
+                background: var(--accent);
+                opacity: 0.4;
+                transform-origin: left;
             }
 
             /* ========= SPINNER ========= */
@@ -1350,8 +1646,7 @@
                     right: 16px;
                     max-width: none;
                 }
-
-                .deposit-card {
+                .deposit-card-main {
                     grid-template-columns: 34px 1fr;
                 }
                 .deposit-side {
@@ -1360,19 +1655,15 @@
                 .deposit-amt {
                     font-size: 15px;
                 }
-
                 .status-pill .status-txt {
                     display: none;
                 }
                 .brand-dim {
                     display: none;
                 }
-
                 .field-row {
                     grid-template-columns: 1fr;
                 }
-
-                /* view height: full height minus header and bottom nav */
                 .view-area,
                 .view {
                     min-height: 0;
@@ -1380,10 +1671,21 @@
                 .deposit-scroll,
                 .addr-scroll,
                 .chains-scroll {
-                    max-height: calc(100svh - 52px - 56px - 47px);
+                    max-height: calc(100svh - 52px - 56px - 47px - 38px);
+                }
+                .filter-bar {
+                    padding: 6px 12px;
+                }
+                .search-wrap {
+                    max-width: none;
+                }
+                .filter-chain-pills {
+                    display: none;
+                }
+                .filter-sep:first-of-type {
+                    display: none;
                 }
             }
-
             @media (min-width: 768px) {
                 .bottom-nav {
                     display: none !important;
@@ -1391,10 +1693,9 @@
                 .deposit-scroll,
                 .addr-scroll,
                 .chains-scroll {
-                    max-height: calc(100svh - 52px - 26px - 47px);
+                    max-height: calc(100svh - 52px - 26px - 47px - 38px);
                 }
             }
-
             @media (min-width: 1100px) {
                 .nav-sidebar {
                     width: 232px;
@@ -1408,7 +1709,6 @@
             <header class="header">
                 <div class="header-brand">
                     <div class="brand-mark">
-                        <!-- Rustplorer "R" bolt icon -->
                         <svg
                             viewBox="0 0 24 24"
                             fill="none"
@@ -1434,6 +1734,36 @@
                             >Connecting…</span
                         >
                     </div>
+                    <!-- Poll countdown SVG ring -->
+                    <svg
+                        class="poll-ring"
+                        id="pollRing"
+                        viewBox="0 0 14 14"
+                        title="Next poll"
+                    >
+                        <circle
+                            cx="7"
+                            cy="7"
+                            r="5.5"
+                            fill="none"
+                            stroke="var(--border-hi)"
+                            stroke-width="1.5"
+                        />
+                        <circle
+                            id="pollArc"
+                            cx="7"
+                            cy="7"
+                            r="5.5"
+                            fill="none"
+                            stroke="var(--accent)"
+                            stroke-width="1.5"
+                            stroke-dasharray="34.56"
+                            stroke-dashoffset="0"
+                            stroke-linecap="round"
+                            transform="rotate(-90 7 7)"
+                            opacity="0.6"
+                        />
+                    </svg>
                 </div>
 
                 <div class="header-right">
@@ -1479,7 +1809,6 @@
                 <!-- Desktop sidebar nav -->
                 <nav class="nav-sidebar">
                     <span class="nav-label">Monitor</span>
-
                     <button
                         class="nav-item active"
                         data-view="feed"
@@ -1500,7 +1829,6 @@
                         Deposit Feed
                         <span class="nav-badge" id="badge-feed">0</span>
                     </button>
-
                     <button
                         class="nav-item"
                         data-view="addresses"
@@ -1524,7 +1852,6 @@
 
                     <div class="nav-sep"></div>
                     <span class="nav-label">Config</span>
-
                     <button class="nav-item" data-view="chains" id="nav-chains">
                         <svg
                             viewBox="0 0 24 24"
@@ -1544,6 +1871,24 @@
                         Chains &amp; Assets
                         <span class="nav-badge" id="badge-chains">0</span>
                     </button>
+
+                    <div class="nav-sep"></div>
+
+                    <!-- Sidebar stats -->
+                    <div class="sidebar-stats">
+                        <div class="stat-row">
+                            <span class="stat-lbl">Total Deposits</span>
+                            <span class="stat-val accent" id="ss-total">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-lbl">Active Chains</span>
+                            <span class="stat-val" id="ss-chains">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-lbl">Last Poll</span>
+                            <span class="stat-val" id="ss-poll">—</span>
+                        </div>
+                    </div>
                 </nav>
 
                 <!-- View area -->
@@ -1561,9 +1906,10 @@
                                 <button
                                     class="icon-btn"
                                     id="refreshBtn"
-                                    title="Refresh now"
+                                    title="Refresh now (R)"
                                 >
                                     <svg
+                                        id="refreshIcon"
                                         viewBox="0 0 24 24"
                                         fill="none"
                                         stroke="currentColor"
@@ -1577,8 +1923,85 @@
                                         />
                                     </svg>
                                 </button>
+                                <select
+                                    class="filter-select"
+                                    id="sortSelect"
+                                    title="Sort deposits"
+                                >
+                                    <option value="block">↓ Block #</option>
+                                    <option value="newest">
+                                        ↓ Newest seen
+                                    </option>
+                                    <option value="amount">↓ Amount</option>
+                                </select>
                             </div>
                         </div>
+
+                        <!-- Filter bar -->
+                        <div class="filter-bar">
+                            <div class="search-wrap">
+                                <svg
+                                    class="search-ico"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.5"
+                                    stroke-linecap="round"
+                                >
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line
+                                        x1="21"
+                                        y1="21"
+                                        x2="16.65"
+                                        y2="16.65"
+                                    />
+                                </svg>
+                                <input
+                                    class="search-inp"
+                                    type="text"
+                                    id="searchInp"
+                                    placeholder="Search address, hash, asset…"
+                                    autocomplete="off"
+                                />
+                                <button
+                                    class="search-clear"
+                                    id="searchClear"
+                                    title="Clear search"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div class="filter-sep"></div>
+                            <div class="filter-chain-pills" id="chainPills">
+                                <!-- Populated dynamically -->
+                            </div>
+                            <span
+                                class="filter-results"
+                                id="filterResults"
+                            ></span>
+                        </div>
+
+                        <!-- New deposit banner -->
+                        <div
+                            class="new-banner"
+                            id="newBanner"
+                            title="Click to scroll to top"
+                        >
+                            <div class="new-banner-dot"></div>
+                            <span id="newBannerTxt">New deposits arrived</span>
+                            <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                            >
+                                <polyline points="18 15 12 9 6 15" />
+                            </svg>
+                        </div>
+
                         <div class="deposit-scroll" id="depositList">
                             <div class="empty-state" id="depositEmpty">
                                 <div class="empty-ico">
@@ -1598,7 +2021,8 @@
                                 <span class="empty-ttl">No deposits yet</span>
                                 <span class="empty-sub"
                                     >Incoming deposits across all tracked
-                                    addresses will appear here.</span
+                                    addresses will appear here
+                                    automatically.</span
                                 >
                             </div>
                         </div>
@@ -1630,7 +2054,7 @@
                                         <line x1="12" y1="5" x2="12" y2="19" />
                                         <line x1="5" y1="12" x2="19" y2="12" />
                                     </svg>
-                                    Add
+                                    Add Address
                                 </button>
                             </div>
                         </div>
@@ -1690,10 +2114,11 @@
                                         stroke-width="2.5"
                                         stroke-linecap="round"
                                     >
-                                        <line x1="12" y1="5" x2="12" y2="19" />
-                                        <line x1="5" y1="12" x2="19" y2="12" />
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="12" y1="8" x2="12" y2="16" />
+                                        <line x1="8" y1="12" x2="16" y2="12" />
                                     </svg>
-                                    Asset
+                                    Add Asset
                                 </button>
                                 <button
                                     class="btn btn-accent btn-sm"
@@ -1709,7 +2134,7 @@
                                         <line x1="12" y1="5" x2="12" y2="19" />
                                         <line x1="5" y1="12" x2="19" y2="12" />
                                     </svg>
-                                    Chain
+                                    Add Chain
                                 </button>
                             </div>
                         </div>
@@ -1722,7 +2147,6 @@
                                         stroke="currentColor"
                                         stroke-width="1.5"
                                         stroke-linecap="round"
-                                        stroke-linejoin="round"
                                     >
                                         <path
                                             d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
@@ -1736,34 +2160,19 @@
                                     >No chains configured</span
                                 >
                                 <span class="empty-sub"
-                                    >Add chains and their assets to start
+                                    >Add a chain and its assets to begin
                                     monitoring.</span
                                 >
                             </div>
                         </div>
                     </div>
                 </div>
-                <!-- /view-area -->
-            </div>
-            <!-- /body-wrap -->
-
-            <!-- Status footer (desktop only) -->
-            <div class="status-footer" id="statusFooter">
-                <span id="sf-status">Connecting…</span>
-                <div class="sf-right">
-                    <span id="sf-poll">Last poll: —</span>
-                    <span id="sf-chains">Chains: 0</span>
-                </div>
             </div>
 
-            <!-- Mobile bottom nav -->
-            <nav class="bottom-nav">
+            <!-- ===== BOTTOM NAV (mobile) ===== -->
+            <div class="bottom-nav">
                 <div class="bottom-nav-inner">
-                    <button
-                        class="bottom-nav-btn active"
-                        data-view="feed"
-                        id="mnav-feed"
-                    >
+                    <button class="bottom-nav-btn active" data-view="feed">
                         <svg
                             viewBox="0 0 24 24"
                             fill="none"
@@ -1771,23 +2180,17 @@
                             stroke-width="2"
                             stroke-linecap="round"
                             stroke-linejoin="round"
+                            width="20"
+                            height="20"
                         >
                             <polyline
                                 points="22 12 18 12 15 21 9 3 6 12 2 12"
                             />
                         </svg>
+                        <span class="mobile-badge" id="mbadge-feed"></span>
                         Feed
-                        <span
-                            class="bottom-badge"
-                            id="mbadge-feed"
-                            style="display: none"
-                        ></span>
                     </button>
-                    <button
-                        class="bottom-nav-btn"
-                        data-view="addresses"
-                        id="mnav-addresses"
-                    >
+                    <button class="bottom-nav-btn" data-view="addresses">
                         <svg
                             viewBox="0 0 24 24"
                             fill="none"
@@ -1795,23 +2198,33 @@
                             stroke-width="2"
                             stroke-linecap="round"
                             stroke-linejoin="round"
+                            width="20"
+                            height="20"
                         >
                             <rect x="2" y="3" width="20" height="14" rx="2" />
                             <line x1="8" y1="21" x2="16" y2="21" />
                             <line x1="12" y1="17" x2="12" y2="21" />
                         </svg>
+                        <span class="mobile-badge" id="mbadge-addr"></span>
                         Addresses
-                        <span
-                            class="bottom-badge"
-                            id="mbadge-addr"
-                            style="display: none"
-                        ></span>
                     </button>
-                    <button
-                        class="bottom-nav-btn"
-                        data-view="chains"
-                        id="mnav-chains"
-                    >
+                    <button class="bottom-nav-btn" id="mnav-add">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            width="20"
+                            height="20"
+                        >
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="16" />
+                            <line x1="8" y1="12" x2="16" y2="12" />
+                        </svg>
+                        Add
+                    </button>
+                    <button class="bottom-nav-btn" data-view="chains">
                         <svg
                             viewBox="0 0 24 24"
                             fill="none"
@@ -1819,6 +2232,8 @@
                             stroke-width="2"
                             stroke-linecap="round"
                             stroke-linejoin="round"
+                            width="20"
+                            height="20"
                         >
                             <path
                                 d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
@@ -1827,37 +2242,31 @@
                                 d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
                             />
                         </svg>
+                        <span class="mobile-badge" id="mbadge-chains"></span>
                         Chains
-                        <span
-                            class="bottom-badge"
-                            id="mbadge-chains"
-                            style="display: none"
-                        ></span>
-                    </button>
-                    <button
-                        class="bottom-nav-btn"
-                        id="mnav-add"
-                        data-action="addAddr"
-                    >
-                        <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2.5"
-                            stroke-linecap="round"
-                        >
-                            <circle cx="12" cy="12" r="9" />
-                            <line x1="12" y1="8" x2="12" y2="16" />
-                            <line x1="8" y1="12" x2="16" y2="12" />
-                        </svg>
-                        Add Addr
                     </button>
                 </div>
-            </nav>
-        </div>
-        <!-- /app -->
+            </div>
 
-        <!-- =================== MODALS =================== -->
+            <!-- Status footer -->
+            <footer class="status-footer" style="position: relative">
+                <span id="sf-status">Connecting…</span>
+                <span>·</span>
+                <span id="sf-poll">Waiting for first poll…</span>
+                <div class="sf-right">
+                    <span id="sf-chains">Chains: 0</span>
+                    <span id="sf-addr">Addresses: 0</span>
+                    <span id="sf-deposits">Deposits: 0</span>
+                </div>
+                <div
+                    class="poll-progress"
+                    id="pollProgress"
+                    style="display: none"
+                ></div>
+            </footer>
+        </div>
+
+        <!-- ===== MODALS ===== -->
 
         <!-- Add Address Modal -->
         <div class="modal-backdrop" id="addAddrModal">
@@ -1866,7 +2275,8 @@
                     <div class="modal-hdr-inner">
                         <div class="modal-ttl">Add Address</div>
                         <div class="modal-sub">
-                            Monitor an address for incoming deposits.
+                            Track an address for incoming deposits on all
+                            monitored chains.
                         </div>
                     </div>
                     <button class="icon-btn" data-close="addAddrModal">
@@ -1900,7 +2310,7 @@
                             class="field-inp"
                             type="text"
                             id="addrLabel"
-                            placeholder="e.g. Treasury wallet"
+                            placeholder="e.g. Hot Wallet, Treasury…"
                         />
                     </div>
                     <div class="field">
@@ -1909,10 +2319,13 @@
                             class="field-inp mono-inp"
                             type="text"
                             id="addrValue"
-                            placeholder="0x… or bc1… or a Solana address"
+                            placeholder="0x… or base58…"
+                            autocomplete="off"
+                            spellcheck="false"
                         />
                         <div class="field-hint">
-                            Paste any EVM, Bitcoin, or Solana address.
+                            EVM (0x…), Solana (base58), or Bitcoin
+                            (bech32/base58) addresses are all supported.
                         </div>
                     </div>
                 </div>
@@ -1934,7 +2347,7 @@
                     <div class="modal-hdr-inner">
                         <div class="modal-ttl">Add Chain</div>
                         <div class="modal-sub">
-                            Persisted to Config.toml and hot-reloaded.
+                            Configure a new blockchain network to monitor.
                         </div>
                     </div>
                     <button class="icon-btn" data-close="addChainModal">
@@ -1960,7 +2373,7 @@
                                 class="field-inp"
                                 type="text"
                                 id="chainName"
-                                placeholder="e.g. ethereum"
+                                placeholder="e.g. ethereum, base…"
                             />
                         </div>
                         <div class="field">
@@ -1971,23 +2384,29 @@
                                 class="field-inp mono-inp"
                                 type="text"
                                 id="chainCaip2"
-                                placeholder="eip155:1"
+                                placeholder="e.g. eip155:1"
                             />
                         </div>
                     </div>
                     <div class="field">
                         <label class="field-lbl" for="chainRpcs"
-                            >RPC URLs</label
+                            >RPC Endpoints
+                            <span
+                                style="
+                                    opacity: 0.5;
+                                    font-size: 9px;
+                                    text-transform: none;
+                                    letter-spacing: 0;
+                                "
+                                >one per line</span
+                            ></label
                         >
                         <textarea
-                            class="field-ta"
+                            class="field-inp mono-inp"
                             id="chainRpcs"
+                            placeholder="https://ethereum.publicnode.com&#10;https://eth.drpc.org"
                             rows="3"
-                            placeholder="https://mainnet.infura.io/v3/KEY&#10;https://eth.llamarpc.com"
                         ></textarea>
-                        <div class="field-hint">
-                            One URL per line. First reachable RPC is used.
-                        </div>
                     </div>
                     <div class="field-row">
                         <div class="field">
@@ -2074,12 +2493,9 @@
                             <label class="field-lbl" for="assetChain"
                                 >Chain Name</label
                             >
-                            <input
-                                class="field-inp"
-                                type="text"
-                                id="assetChain"
-                                placeholder="e.g. ethereum"
-                            />
+                            <select class="field-inp" id="assetChain">
+                                <option value="">Select a chain…</option>
+                            </select>
                         </div>
                         <div class="field">
                             <label class="field-lbl" for="assetName"
@@ -2158,8 +2574,7 @@
                             <path
                                 d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
                             />
-                            <path d="M10 11v6M14 11v6" />
-                            <path d="M9 6V4h6v2" />
+                            <path d="M10 11v6M14 11v6M9 6V4h6v2" />
                         </svg>
                     </div>
                     <p class="del-modal-msg" id="delMsg">
@@ -2186,109 +2601,36 @@
 
             // ===== State =====
             const API = "";
+            const POLL_INTERVAL = 2000; // ms
             let configData = { chains: {} };
             let addresses = [];
             let deposits = [];
+            let balances = [];
+            let depositsRendered = false;
+            let addressesSignature = "";
+            let balancesSignature = "";
             let connected = false;
+            let failedPolls = 0;
             let pollTimer = null;
+            let eventSource = null;
             let pendingDel = null;
             let activeView = "feed";
             let isLight = false;
 
-            // ===== Navigation =====
-            function switchView(name) {
-                activeView = name;
+            // Filter state
+            let filterSearch = "";
+            let filterChain = "";
+            let sortMode = "block";
 
-                document
-                    .querySelectorAll(".nav-item, .bottom-nav-btn[data-view]")
-                    .forEach((el) => {
-                        el.classList.toggle("active", el.dataset.view === name);
-                    });
+            // New-deposit tracking
+            let knownDepositKeys = new Set();
+            let seenDepositTimes = new Map();
+            let newDepositCount = 0;
+            let userScrolledDown = false;
 
-                document.querySelectorAll(".view").forEach((v) => {
-                    v.classList.toggle("active", v.id === "view-" + name);
-                });
-            }
-
-            document.querySelectorAll("[data-view]").forEach((btn) => {
-                btn.addEventListener("click", () => {
-                    if (btn.dataset.view) switchView(btn.dataset.view);
-                });
-            });
-
-            document
-                .getElementById("mnav-add")
-                .addEventListener("click", () => openModal("addAddrModal"));
-
-            // ===== Theme =====
-            function applyTheme(light) {
-                isLight = light;
-                document.documentElement.setAttribute(
-                    "data-theme",
-                    light ? "light" : "dark",
-                );
-                const icon = document.getElementById("themeIcon");
-                if (light) {
-                    icon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
-                } else {
-                    icon.innerHTML = `<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>`;
-                }
-                try {
-                    localStorage.setItem("rp-theme", light ? "light" : "dark");
-                } catch (e) {}
-            }
-
-            document
-                .getElementById("themeBtn")
-                .addEventListener("click", () => applyTheme(!isLight));
-            try {
-                const saved = localStorage.getItem("rp-theme");
-                applyTheme(saved === "light");
-            } catch (e) {
-                applyTheme(false);
-            }
-
-            // ===== Modals =====
-            function openModal(id) {
-                document.getElementById(id).classList.add("open");
-            }
-            function closeModal(id) {
-                document.getElementById(id).classList.remove("open");
-            }
-
-            document.querySelectorAll("[data-close]").forEach((el) => {
-                el.addEventListener("click", () =>
-                    closeModal(el.dataset.close),
-                );
-            });
-
-            document.querySelectorAll(".modal-backdrop").forEach((bd) => {
-                bd.addEventListener("click", (e) => {
-                    if (e.target === bd) closeModal(bd.id);
-                });
-            });
-
-            document.addEventListener("keydown", (e) => {
-                if (e.key === "Escape") {
-                    document
-                        .querySelectorAll(".modal-backdrop.open")
-                        .forEach((bd) => closeModal(bd.id));
-                }
-            });
-
-            // ===== Toast =====
-            function toast(msg, type) {
-                type = type || "info";
-                const root = document.getElementById("toastRoot");
-                const el = document.createElement("div");
-                el.className = "toast " + type;
-                el.innerHTML = `<div class="toast-pip"></div><span>${esc(msg)}</span>`;
-                root.appendChild(el);
-                setTimeout(() => {
-                    el.classList.add("out");
-                    setTimeout(() => el.remove(), 220);
-                }, 3000);
-            }
+            // Poll ring animation
+            let pollRingTimer = null;
+            let pollStartedAt = 0;
 
             // ===== Helpers =====
             function esc(s) {
@@ -2307,14 +2649,22 @@
 
             function relTime(ts) {
                 if (!ts) return "";
-                const d = new Date(ts),
-                    now = Date.now(),
-                    diff = now - d;
-                if (diff < 60000) return "just now";
+                const d = typeof ts === "number" ? new Date(ts) : new Date(ts);
+                const diff = Date.now() - d.getTime();
+                if (isNaN(diff)) return "";
+                if (diff < 5000) return "just now";
+                if (diff < 60000) return Math.floor(diff / 1000) + "s ago";
                 if (diff < 3600000) return Math.floor(diff / 60000) + "m ago";
                 if (diff < 86400000)
                     return Math.floor(diff / 3600000) + "h ago";
                 return d.toLocaleDateString();
+            }
+
+            function fullDate(ts) {
+                if (!ts) return "";
+                const d = typeof ts === "number" ? new Date(ts) : new Date(ts);
+                if (isNaN(d)) return "";
+                return d.toLocaleString();
             }
 
             function chainCls(name, caip2) {
@@ -2371,14 +2721,180 @@
                 );
             }
 
+            function chainDotColor(cls) {
+                const map = {
+                    eth: "#a5b4fc",
+                    poly: "#c084fc",
+                    arb: "#22d3ee",
+                    op: "#f87171",
+                    base: "#60a5fa",
+                    bsc: "#fbbf24",
+                    sol: "#2dd4bf",
+                    btc: "#fb923c",
+                };
+                return map[cls] || "var(--text2)";
+            }
+
             function copy(text) {
                 navigator.clipboard
                     .writeText(text)
                     .then(() => toast("Copied!", "ok"))
-                    .catch(() => toast("Copy failed", "err"));
+                    .catch(() => {
+                        try {
+                            const ta = document.createElement("textarea");
+                            ta.value = text;
+                            ta.style.position = "fixed";
+                            ta.style.opacity = "0";
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand("copy");
+                            ta.remove();
+                            toast("Copied!", "ok");
+                        } catch {
+                            toast("Copy failed", "err");
+                        }
+                    });
             }
 
-            // ===== Connection Status =====
+            function explorerLink(chain, txHash) {
+                const map = {
+                    ethereum: `https://etherscan.io/tx/${txHash}`,
+                    base: `https://basescan.org/tx/${txHash}`,
+                    polygon: `https://polygonscan.com/tx/${txHash}`,
+                    arbitrum: `https://arbiscan.io/tx/${txHash}`,
+                    optimism: `https://optimistic.etherscan.io/tx/${txHash}`,
+                    bsc: `https://bscscan.com/tx/${txHash}`,
+                    solana: `https://solscan.io/tx/${txHash}`,
+                    bitcoin: `https://mempool.space/tx/${txHash}`,
+                };
+                return map[(chain || "").toLowerCase()] || null;
+            }
+
+            function addressLabel(addr) {
+                const a = addresses.find((a) => {
+                    const av =
+                        typeof a === "object"
+                            ? a.address || a.addr || ""
+                            : String(a);
+                    return av.toLowerCase() === (addr || "").toLowerCase();
+                });
+                if (!a) return null;
+                return typeof a === "object" ? a.label : null;
+            }
+
+            function depositKey(d) {
+                return [
+                    d.chain || "",
+                    d.asset || "",
+                    d.tx_hash || "",
+                    d.to_address || d.to || "",
+                    d.block_number || "",
+                ].join(":");
+            }
+
+            // ===== Navigation =====
+            function switchView(name) {
+                activeView = name;
+                // If switching to feed, clear new-deposit badge
+                if (name === "feed") {
+                    newDepositCount = 0;
+                    hideBanner();
+                }
+
+                document
+                    .querySelectorAll(".nav-item, .bottom-nav-btn[data-view]")
+                    .forEach((el) => {
+                        el.classList.toggle("active", el.dataset.view === name);
+                    });
+                document.querySelectorAll(".view").forEach((v) => {
+                    v.classList.toggle("active", v.id === "view-" + name);
+                });
+            }
+
+            document.querySelectorAll("[data-view]").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    if (btn.dataset.view) switchView(btn.dataset.view);
+                });
+            });
+            document
+                .getElementById("mnav-add")
+                .addEventListener("click", () => openModal("addAddrModal"));
+
+            // ===== Theme =====
+            function applyTheme(light) {
+                isLight = light;
+                document.documentElement.setAttribute(
+                    "data-theme",
+                    light ? "light" : "dark",
+                );
+                const icon = document.getElementById("themeIcon");
+                if (light) {
+                    icon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
+                } else {
+                    icon.innerHTML = `<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>`;
+                }
+                try {
+                    localStorage.setItem("rp-theme", light ? "light" : "dark");
+                } catch (e) {}
+            }
+            document
+                .getElementById("themeBtn")
+                .addEventListener("click", () => applyTheme(!isLight));
+            try {
+                applyTheme(localStorage.getItem("rp-theme") === "light");
+            } catch (e) {
+                applyTheme(false);
+            }
+
+            // ===== Modals =====
+            function openModal(id) {
+                document.getElementById(id).classList.add("open");
+            }
+            function closeModal(id) {
+                document.getElementById(id).classList.remove("open");
+            }
+            document.querySelectorAll("[data-close]").forEach((el) => {
+                el.addEventListener("click", () =>
+                    closeModal(el.dataset.close),
+                );
+            });
+            document.querySelectorAll(".modal-backdrop").forEach((bd) => {
+                bd.addEventListener("click", (e) => {
+                    if (e.target === bd) closeModal(bd.id);
+                });
+            });
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape")
+                    document
+                        .querySelectorAll(".modal-backdrop.open")
+                        .forEach((bd) => closeModal(bd.id));
+                if (
+                    e.key === "r" &&
+                    !e.ctrlKey &&
+                    !e.metaKey &&
+                    !["INPUT", "TEXTAREA", "SELECT"].includes(
+                        document.activeElement?.tagName,
+                    )
+                ) {
+                    refreshAll();
+                }
+            });
+
+            // ===== Toast =====
+            function toast(msg, type) {
+                type = type || "info";
+                const root = document.getElementById("toastRoot");
+                const el = document.createElement("div");
+                el.className = "toast " + type;
+                el.innerHTML = `<div class="toast-pip"></div><span>${esc(msg)}</span>`;
+                root.appendChild(el);
+                setTimeout(() => {
+                    el.classList.add("out");
+                    setTimeout(() => el.remove(), 220);
+                }, 3200);
+            }
+
+            // ===== Status =====
             function setStatus(state) {
                 connected = state === "conn";
                 const pill = document.getElementById("statusPill");
@@ -2394,66 +2910,299 @@
                 sf.textContent = labels[state];
             }
 
+            // ===== Poll ring animation =====
+            function startPollRing() {
+                pollStartedAt = Date.now();
+                const arc = document.getElementById("pollArc");
+                const circumference = 34.56;
+                if (pollRingTimer) clearInterval(pollRingTimer);
+                pollRingTimer = setInterval(() => {
+                    const elapsed = Date.now() - pollStartedAt;
+                    const frac = Math.min(elapsed / POLL_INTERVAL, 1);
+                    // Counts down from 0 offset to full circumference
+                    arc.style.strokeDashoffset = (frac * circumference).toFixed(
+                        2,
+                    );
+                }, 100);
+            }
+            function resetPollRing() {
+                const arc = document.getElementById("pollArc");
+                arc.style.strokeDashoffset = "0";
+                startPollRing();
+            }
+
+            // ===== New Deposit Banner =====
+            function showBanner(count) {
+                const b = document.getElementById("newBanner");
+                document.getElementById("newBannerTxt").textContent =
+                    `${count} new deposit${count !== 1 ? "s" : ""} — click to scroll to top`;
+                b.classList.add("visible");
+            }
+            function hideBanner() {
+                document
+                    .getElementById("newBanner")
+                    .classList.remove("visible");
+            }
+            document
+                .getElementById("newBanner")
+                .addEventListener("click", () => {
+                    const list = document.getElementById("depositList");
+                    list.scrollTo({ top: 0, behavior: "smooth" });
+                    hideBanner();
+                    newDepositCount = 0;
+                });
+
+            // ===== Live timestamp ticker =====
+            function tickTimestamps() {
+                document.querySelectorAll("[data-ts]").forEach((el) => {
+                    el.textContent = relTime(el.dataset.ts);
+                });
+            }
+            setInterval(tickTimestamps, 15000);
+
+            // ===== Filter bar =====
+            const searchInp = document.getElementById("searchInp");
+            const searchClear = document.getElementById("searchClear");
+            const sortSelect = document.getElementById("sortSelect");
+
+            searchInp.addEventListener("input", () => {
+                filterSearch = searchInp.value.trim().toLowerCase();
+                searchClear.classList.toggle(
+                    "visible",
+                    filterSearch.length > 0,
+                );
+                renderDeposits();
+            });
+            searchClear.addEventListener("click", () => {
+                searchInp.value = "";
+                filterSearch = "";
+                searchClear.classList.remove("visible");
+                renderDeposits();
+            });
+            sortSelect.addEventListener("change", () => {
+                sortMode = sortSelect.value;
+                renderDeposits();
+            });
+
+            function buildChainPills() {
+                const container = document.getElementById("chainPills");
+                const chains = [
+                    ...new Set(deposits.map((d) => d.chain).filter(Boolean)),
+                ].sort();
+                container.innerHTML = "";
+                if (chains.length === 0) return;
+
+                chains.forEach((ch) => {
+                    const pill = document.createElement("button");
+                    pill.className =
+                        "chain-pill" + (filterChain === ch ? " active" : "");
+                    const cls = chainCls(ch, "");
+                    const lbl = chainLbl(ch, "");
+                    pill.textContent = lbl;
+                    pill.dataset.chain = ch;
+                    pill.addEventListener("click", () => {
+                        filterChain = filterChain === ch ? "" : ch;
+                        buildChainPills();
+                        renderDeposits();
+                    });
+                    container.appendChild(pill);
+                });
+            }
+
             // ===== Deposits =====
-            let knownTxHashes = new Set();
+            function normalizeDeposit(d) {
+                const key = depositKey(d);
+                if (key && !seenDepositTimes.has(key))
+                    seenDepositTimes.set(key, Date.now());
+                return { ...d, _seen_at: seenDepositTimes.get(key) };
+            }
+
+            function mergeDeposit(deposit) {
+                const key = depositKey(deposit);
+                if (!key) return;
+                const enriched = normalizeDeposit(deposit);
+                const index = deposits.findIndex((d) => depositKey(d) === key);
+                if (index >= 0) deposits[index] = enriched;
+                else deposits.unshift(enriched);
+                deposits = deposits.slice(0, 100);
+            }
+
+            function mergeDepositsFromServer(list) {
+                // Merge server list without wiping SSE-added entries that the server might not have returned yet
+                const serverKeys = new Set(list.map((d) => depositKey(d)));
+                const serverEnriched = list.map((d) => normalizeDeposit(d));
+
+                // Keep SSE-added deposits that are NOT in the server response yet (they will show up soon)
+                const sseOnly = deposits.filter(
+                    (d) => !serverKeys.has(depositKey(d)),
+                );
+
+                // Build final list: server data (authoritative) + any very recent SSE-only items
+                const now = Date.now();
+                const recentSseOnly = sseOnly.filter(
+                    (d) => now - (d._seen_at || 0) < 10000,
+                );
+
+                deposits = [...serverEnriched, ...recentSseOnly]
+                    .sort((a, b) => (b._seen_at || 0) - (a._seen_at || 0))
+                    .slice(0, 100);
+            }
+
+            function depositsSignature() {
+                return deposits
+                    .map(
+                        (d) =>
+                            `${depositKey(d)}:${d.amount_raw || d.amount_clean || ""}:${d.block_number || ""}`,
+                    )
+                    .join("|");
+            }
 
             async function fetchDeposits() {
+                const refreshIcon = document.getElementById("refreshIcon");
+                if (refreshIcon)
+                    refreshIcon.style.animation = "spin 0.7s linear infinite";
                 try {
                     const r = await fetch(API + "/v1/deposits");
                     if (!r.ok) throw new Error("HTTP " + r.status);
                     const j = await r.json();
-                    deposits = Array.isArray(j.data)
+                    const rawList = Array.isArray(j.data)
                         ? j.data
                         : Array.isArray(j)
                           ? j
                           : [];
-                    renderDeposits();
+                    const before = depositsSignature();
+                    mergeDepositsFromServer(rawList);
+                    const after = depositsSignature();
+                    failedPolls = 0;
                     setStatus("conn");
+                    if (!depositsRendered || before !== after) renderDeposits();
                 } catch (e) {
-                    console.error(e);
-                    setStatus("disc");
+                    console.error("fetchDeposits:", e);
+                    failedPolls++;
+                    if (failedPolls >= 3) setStatus("disc");
+                } finally {
+                    if (refreshIcon) refreshIcon.style.animation = "";
                 }
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                });
                 document.getElementById("sf-poll").textContent =
-                    "Last poll: " +
-                    new Date().toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
+                    "Last poll: " + timeStr;
+                document.getElementById("ss-poll").textContent = timeStr;
+                resetPollRing();
+            }
+
+            function filterAndSort(list) {
+                let out = list;
+                if (filterChain)
+                    out = out.filter((d) => d.chain === filterChain);
+                if (filterSearch) {
+                    const q = filterSearch;
+                    out = out.filter((d) => {
+                        const from = (
+                            d.from_address ||
+                            d.from ||
+                            ""
+                        ).toLowerCase();
+                        const to = (d.to_address || d.to || "").toLowerCase();
+                        const tx = (d.tx_hash || "").toLowerCase();
+                        const asset = (d.asset || "").toLowerCase();
+                        const chain = (d.chain || "").toLowerCase();
+                        const amt = String(d.amount_clean || d.amount || "");
+                        return (
+                            from.includes(q) ||
+                            to.includes(q) ||
+                            tx.includes(q) ||
+                            asset.includes(q) ||
+                            chain.includes(q) ||
+                            amt.includes(q)
+                        );
                     });
+                }
+                if (sortMode === "block")
+                    out = [...out].sort(
+                        (a, b) => (b.block_number || 0) - (a.block_number || 0),
+                    );
+                else if (sortMode === "newest")
+                    out = [...out].sort(
+                        (a, b) => (b._seen_at || 0) - (a._seen_at || 0),
+                    );
+                else if (sortMode === "amount")
+                    out = [...out].sort(
+                        (a, b) =>
+                            parseFloat(b.amount_clean || b.amount || 0) -
+                            parseFloat(a.amount_clean || a.amount || 0),
+                    );
+                return out;
             }
 
             function renderDeposits() {
+                depositsRendered = true;
                 const list = document.getElementById("depositList");
-                const empty = document.getElementById("depositEmpty");
                 const count = deposits.length;
 
+                // Update counts
                 document.getElementById("feed-count-pill").textContent = count;
                 document.getElementById("badge-feed").textContent = count;
-
-                // mobile badge
+                document.getElementById("sf-deposits").textContent =
+                    "Deposits: " + count;
+                document.getElementById("ss-total").textContent = count;
                 const mb = document.getElementById("mbadge-feed");
                 if (count > 0) {
                     mb.textContent = count > 99 ? "99+" : count;
                     mb.style.display = "";
                 } else mb.style.display = "none";
 
+                // Build chain pills
+                buildChainPills();
+
                 if (count === 0) {
-                    list.innerHTML = "";
-                    list.appendChild(empty);
+                    const empty = document.getElementById("depositEmpty");
+                    if (empty.parentNode !== list) {
+                        list.innerHTML = "";
+                        list.appendChild(empty);
+                    }
                     empty.style.display = "";
+                    document.getElementById("filterResults").textContent = "";
                     return;
                 }
 
+                const empty = document.getElementById("depositEmpty");
                 if (empty.parentNode === list) empty.remove();
 
-                // Detect new
-                const incoming = new Set();
-                deposits.forEach((d) => {
-                    if (d.tx_hash) incoming.add(d.tx_hash);
-                });
+                const sorted = filterAndSort(deposits);
+                const filtered = sorted;
+
+                // Update filter result label
+                const resEl = document.getElementById("filterResults");
+                if (filterSearch || filterChain) {
+                    resEl.textContent = filtered.length + " of " + count;
+                } else {
+                    resEl.textContent = "";
+                }
+
+                // Detect new keys
+                const incoming = new Set(deposits.map((d) => depositKey(d)));
+                const newKeys = [...incoming].filter(
+                    (k) => !knownDepositKeys.has(k),
+                );
+                const hasNew = newKeys.length > 0;
+
+                if (hasNew) {
+                    newDepositCount += newKeys.length;
+                    // If user scrolled down, show the banner; otherwise auto-scroll to top
+                    const scrollTop = list.scrollTop;
+                    if (scrollTop > 60 && activeView === "feed") {
+                        showBanner(newDepositCount);
+                    }
+                }
+                knownDepositKeys = incoming;
 
                 let html = "";
-                deposits.forEach((d) => {
+                filtered.forEach((d) => {
                     const name = d.chain || "";
                     const cls = chainCls(name, "");
                     const lbl = chainLbl(name, "");
@@ -2463,52 +3212,121 @@
                     const to = d.to_address || d.to || "";
                     const tx = d.tx_hash || "";
                     const block = d.block_number || "";
-                    const ts = d.timestamp || "";
-                    const isNew = tx && !knownTxHashes.has(tx);
+                    const ts = d.timestamp || d._seen_at || "";
+                    const seenAt = d._seen_at || "";
+                    const isNew = tx && newKeys.includes(depositKey(d));
+                    const explorerUrl = explorerLink(name, tx);
+                    const toLabel = to ? addressLabel(to) : null;
 
-                    html += `<div class="deposit-card${isNew ? " is-new" : ""}">`;
-                    html += `  <div class="chain-badge ${esc(cls)}">${esc(lbl)}</div>`;
-                    html += `  <div class="deposit-body">`;
-                    html += `    <div class="deposit-headline">`;
-                    html += `      <span class="deposit-amt"><span class="deposit-amt-accent">${esc(amount)}</span> ${esc(token)}</span>`;
-                    html += `      <span class="chain-tag ${esc(cls)}">${esc(lbl)}</span>`;
-                    html += `    </div>`;
-                    html += `    <div class="deposit-meta">`;
+                    html += `<div class="deposit-card${isNew ? " is-new" : ""}" data-key="${esc(depositKey(d))}">`;
+                    html += `  <div class="deposit-card-main" onclick="toggleCard(this.parentNode)">`;
+                    html += `    <div class="chain-badge ${esc(cls)}">${esc(lbl)}</div>`;
+                    html += `    <div class="deposit-body">`;
+                    html += `      <div class="deposit-headline">`;
+                    html += `        <span class="deposit-amt"><span class="deposit-amt-accent">${esc(amount)}</span> ${esc(token)}</span>`;
+                    html += `        <span class="chain-tag ${esc(cls)}">${esc(lbl)}</span>`;
+                    if (toLabel)
+                        html += `        <span class="addr-label-tag">${esc(toLabel)}</span>`;
+                    html += `      </div>`;
+                    html += `      <div class="deposit-meta">`;
                     if (from || to) {
                         html += `<div class="deposit-row">`;
-                        html += `<span class="dep-lbl">Tx</span>`;
+                        html += `  <span class="dep-lbl">From</span>`;
                         if (from)
-                            html += `<span class="hash-val" title="${esc(from)}" onclick="copy('${esc(from)}')">${esc(trunc(from, 8, 6))}</span>`;
+                            html += `<span class="hash-val" title="${esc(from)}" onclick="event.stopPropagation();copy('${esc(from)}')">${esc(trunc(from, 8, 6))}</span>`;
                         if (from && to)
                             html += `<span class="dep-arrow">→</span>`;
                         if (to)
-                            html += `<span class="hash-val" title="${esc(to)}" onclick="copy('${esc(to)}')">${esc(trunc(to, 8, 6))}</span>`;
+                            html += `<span class="dep-lbl">To</span><span class="hash-val" title="${esc(to)}" onclick="event.stopPropagation();copy('${esc(to)}')">${esc(trunc(to, 8, 6))}</span>`;
                         html += `</div>`;
                     }
                     if (tx) {
                         html += `<div class="deposit-row">`;
-                        html += `<span class="dep-lbl">Hash</span>`;
-                        html += `<span class="hash-val" title="${esc(tx)}" onclick="copy('${esc(tx)}')" style="max-width:180px">${esc(trunc(tx, 12, 8))}</span>`;
+                        html += `  <span class="dep-lbl">Tx</span>`;
+                        html += `  <span class="hash-val" title="${esc(tx)}" onclick="event.stopPropagation();copy('${esc(tx)}')" style="max-width:160px">${esc(trunc(tx, 10, 6))}</span>`;
+                        if (explorerUrl)
+                            html += `  <a href="${esc(explorerUrl)}" target="_blank" rel="noopener" style="color:var(--text2);display:flex;align-items:center" title="View on explorer" onclick="event.stopPropagation()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`;
                         html += `</div>`;
                     }
+                    html += `      </div>`;
                     html += `    </div>`;
-                    html += `  </div>`;
-                    html += `  <div class="deposit-side">`;
-                    html += `    <span class="dep-time">${esc(relTime(ts))}</span>`;
+                    html += `    <div class="deposit-side">`;
+                    html += `      <span class="dep-time" data-ts="${esc(String(ts))}">${esc(relTime(ts))}</span>`;
                     if (block)
                         html += `<span class="dep-block">#${esc(String(block))}</span>`;
+                    html += `      <svg class="dep-expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+                    html += `    </div>`;
+                    html += `  </div>`;
+                    // Detail panel
+                    html += `  <div class="deposit-detail">`;
+                    html += `    <div class="deposit-detail-inner">`;
+                    if (from) {
+                        html += `<div class="detail-field"><div class="detail-lbl">From Address</div><div class="detail-val" onclick="copy('${esc(from)}')" title="Click to copy">${esc(from)}</div></div>`;
+                    }
+                    if (to) {
+                        html += `<div class="detail-field"><div class="detail-lbl">To Address${toLabel ? " · " + toLabel : ""}</div><div class="detail-val" onclick="copy('${esc(to)}')" title="Click to copy">${esc(to)}</div></div>`;
+                    }
+                    if (tx) {
+                        html += `<div class="detail-field"><div class="detail-lbl">Transaction Hash</div><div class="detail-val" onclick="copy('${esc(tx)}')" title="Click to copy">${esc(tx)}</div></div>`;
+                    }
+                    if (block) {
+                        html += `<div class="detail-field"><div class="detail-lbl">Block Number</div><div class="detail-val">${esc(String(block))}</div></div>`;
+                    }
+                    if (ts) {
+                        html += `<div class="detail-field"><div class="detail-lbl">Timestamp</div><div class="detail-val">${esc(fullDate(ts))}</div></div>`;
+                    }
+                    if (seenAt) {
+                        html += `<div class="detail-field"><div class="detail-lbl">First Seen</div><div class="detail-val">${esc(fullDate(seenAt))}</div></div>`;
+                    }
+                    html += `    </div>`;
+                    if (tx || from || to) {
+                        html += `    <div class="detail-actions">`;
+                        if (tx)
+                            html += `<button class="btn btn-ghost btn-sm" onclick="copy('${esc(tx)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="11" height="11"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy TX Hash</button>`;
+                        if (explorerUrl)
+                            html += `<a class="btn btn-ghost btn-sm" href="${esc(explorerUrl)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="11" height="11"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>View on Explorer</a>`;
+                        if (to)
+                            html += `<button class="btn btn-ghost btn-sm" onclick="copy('${esc(to)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="11" height="11"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy To Address</button>`;
+                        html += `    </div>`;
+                    }
                     html += `  </div>`;
                     html += `</div>`;
                 });
 
-                // Remember what we've seen
-                knownTxHashes = incoming;
+                // Preserve scroll position
+                const prevScroll = list.scrollTop;
+                list.innerHTML = html;
+                list.scrollTop = prevScroll;
+            }
 
-                // Only re-render if content changed (avoid scroll reset)
-                if (list.dataset.lastHtml !== html) {
-                    list.innerHTML = html;
-                    list.dataset.lastHtml = html;
-                }
+            function toggleCard(card) {
+                card.classList.toggle("expanded");
+            }
+
+            // ===== SSE =====
+            function startEvents() {
+                if (!("EventSource" in window)) return;
+                if (eventSource) eventSource.close();
+                eventSource = new EventSource(API + "/v1/events");
+                eventSource.addEventListener("open", () => {
+                    failedPolls = 0;
+                    setStatus("conn");
+                });
+                eventSource.addEventListener("deposit", (event) => {
+                    try {
+                        const dep = JSON.parse(event.data);
+                        const before = depositsSignature();
+                        mergeDeposit(dep);
+                        if (before !== depositsSignature()) renderDeposits();
+                        fetchBalances();
+                        setStatus("conn");
+                    } catch (e) {
+                        console.error("event parse:", e);
+                    }
+                });
+                eventSource.addEventListener("error", () => {
+                    if (failedPolls > 0) setStatus("cing");
+                });
             }
 
             // ===== Addresses =====
@@ -2517,16 +3335,53 @@
                     const r = await fetch(API + "/v1/addresses");
                     if (!r.ok) throw new Error();
                     const j = await r.json();
-                    addresses = Array.isArray(j.data)
+                    const next = Array.isArray(j.data)
                         ? j.data
                         : Array.isArray(j)
                           ? j
                           : [];
-                    renderAddresses();
+                    const nextSignature = JSON.stringify(next);
+                    if (nextSignature !== addressesSignature) {
+                        addresses = next;
+                        addressesSignature = nextSignature;
+                        renderAddresses();
+                    }
                 } catch (e) {
-                    addresses = [];
-                    renderAddresses();
+                    if (addresses.length > 0 || addressesSignature !== "[]") {
+                        addresses = [];
+                        addressesSignature = "[]";
+                        renderAddresses();
+                    }
                 }
+            }
+
+            async function fetchBalances() {
+                try {
+                    const r = await fetch(API + "/v1/balances");
+                    if (!r.ok) throw new Error();
+                    const j = await r.json();
+                    const next = Array.isArray(j.data) ? j.data : [];
+                    const nextSignature = JSON.stringify(next);
+                    if (nextSignature !== balancesSignature) {
+                        balances = next;
+                        balancesSignature = nextSignature;
+                        renderAddresses();
+                    }
+                } catch (e) {
+                    if (balances.length > 0 || balancesSignature !== "[]") {
+                        balances = [];
+                        balancesSignature = "[]";
+                        renderAddresses();
+                    }
+                }
+            }
+
+            function addressBalances(addr) {
+                return balances.filter(
+                    (b) =>
+                        String(b.address || "").toLowerCase() ===
+                        String(addr || "").toLowerCase(),
+                );
             }
 
             function renderAddresses() {
@@ -2535,6 +3390,8 @@
 
                 document.getElementById("addr-count-pill").textContent = count;
                 document.getElementById("badge-addr").textContent = count;
+                document.getElementById("sf-addr").textContent =
+                    "Addresses: " + count;
                 const mb = document.getElementById("mbadge-addr");
                 if (count > 0) {
                     mb.textContent = count;
@@ -2543,10 +3400,10 @@
 
                 if (count === 0) {
                     list.innerHTML = `<div class="empty-state">
-      <div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-      <span class="empty-ttl">No addresses tracked</span>
-      <span class="empty-sub">Add an address to start monitoring for incoming deposits.</span>
-    </div>`;
+                        <div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+                        <span class="empty-ttl">No addresses tracked</span>
+                        <span class="empty-sub">Add an address to start monitoring for incoming deposits.</span>
+                    </div>`;
                     return;
                 }
 
@@ -2561,17 +3418,51 @@
                             ? a.address || a.addr || ""
                             : String(a);
                     const initial = (lbl.charAt(0) || "#").toUpperCase();
+                    const addrDeposits = deposits.filter(
+                        (d) =>
+                            (d.to_address || d.to || "").toLowerCase() ===
+                            addr.toLowerCase(),
+                    );
+                    const depCount = addrDeposits.length;
+                    const balRows = addressBalances(addr);
+                    const chainSet = [
+                        ...new Set(
+                            addrDeposits.map((d) => d.chain).filter(Boolean),
+                        ),
+                    ];
 
                     html += `<div class="addr-card">`;
                     html += `  <div class="addr-avatar">${esc(initial)}</div>`;
                     html += `  <div class="addr-body">`;
                     html += `    <div class="addr-lbl">${esc(lbl)}</div>`;
-                    html += `    <div class="addr-val" title="${esc(addr)}" onclick="copy('${esc(addr)}')">${esc(trunc(addr, 12, 8))}</div>`;
+                    html += `    <div class="addr-val" title="${esc(addr)}" onclick="copy('${esc(addr)}')">${esc(addr)}</div>`;
+                    // Stats row
+                    html += `    <div class="addr-stats-row">`;
+                    html += `      <div class="addr-stat"><span class="addr-stat-lbl">Deposits</span><span class="addr-stat-val${depCount > 0 ? " accent" : ""}">${depCount}</span></div>`;
+                    if (chainSet.length > 0)
+                        html += `      <div class="addr-stat"><span class="addr-stat-lbl">Chains</span><span class="addr-stat-val">${chainSet.map((c) => chainLbl(c, "")).join(", ")}</span></div>`;
+                    html += `    </div>`;
+                    // Balances chips
+                    if (balRows.length > 0) {
+                        html += `    <div class="addr-balances">`;
+                        balRows.slice(0, 6).forEach((b) => {
+                            const bcls = chainCls(b.chain || "", "");
+                            html += `<span class="bal-chip"><span class="chain-dot" style="background:${chainDotColor(bcls)}"></span>${esc(b.amount_clean || "0")} ${esc(b.asset || "?")} <span style="opacity:.6;font-size:9px">${esc(b.chain || "")}</span></span>`;
+                        });
+                        if (balRows.length > 6)
+                            html += `<span class="bal-chip" style="color:var(--text2)">+${balRows.length - 6} more</span>`;
+                        html += `    </div>`;
+                    }
                     html += `  </div>`;
                     html += `  <div class="addr-acts">`;
                     html += `    <button class="icon-btn" title="Copy address" onclick="copy('${esc(addr)}')">`;
                     html += `      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
                     html += `    </button>`;
+                    if (depCount > 0) {
+                        html += `    <button class="icon-btn" title="View deposits for this address" onclick="filterToAddr('${esc(addr)}')">`;
+                        html += `      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
+                        html += `    </button>`;
+                    }
                     html += `    <button class="icon-btn" title="Remove address" onclick="confirmDelAddr(${i},'${esc(addr)}')">`;
                     html += `      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
                     html += `    </button>`;
@@ -2579,7 +3470,17 @@
                     html += `</div>`;
                 });
 
+                const prevScroll = list.scrollTop;
                 list.innerHTML = html;
+                list.scrollTop = prevScroll;
+            }
+
+            function filterToAddr(addr) {
+                searchInp.value = addr;
+                filterSearch = addr.toLowerCase();
+                searchClear.classList.add("visible");
+                switchView("feed");
+                renderDeposits();
             }
 
             // ===== Config / Chains =====
@@ -2606,15 +3507,15 @@
                 document.getElementById("badge-chains").textContent = count;
                 document.getElementById("sf-chains").textContent =
                     "Chains: " + count;
-                const mb = document.getElementById("mbadge-chains");
-                mb.style.display = "none";
+                document.getElementById("ss-chains").textContent = count;
+                document.getElementById("mbadge-chains").style.display = "none";
 
                 if (count === 0) {
                     list.innerHTML = `<div class="empty-state">
-      <div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
-      <span class="empty-ttl">No chains configured</span>
-      <span class="empty-sub">Add a chain and its assets to begin monitoring.</span>
-    </div>`;
+                        <div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+                        <span class="empty-ttl">No chains configured</span>
+                        <span class="empty-sub">Add a chain and its assets to begin monitoring.</span>
+                    </div>`;
                     return;
                 }
 
@@ -2627,13 +3528,18 @@
                     const rpcs = chain.rpc || [];
                     const cls = chainCls(name, caip2);
                     const lbl = chainLbl(name, caip2);
+                    const depositCount = deposits.filter(
+                        (d) =>
+                            (d.chain || "").toLowerCase() ===
+                            name.toLowerCase(),
+                    ).length;
 
                     html += `<div class="chain-card">`;
                     html += `  <div class="chain-card-hdr">`;
                     html += `    <div class="chain-badge ${esc(cls)}">${esc(lbl)}</div>`;
                     html += `    <div class="chain-card-info">`;
                     html += `      <div class="chain-card-name">${esc(name)}</div>`;
-                    html += `      <div class="chain-caip2">${esc(caip2)}</div>`;
+                    html += `      <div class="chain-caip2">${esc(caip2)}${depositCount > 0 ? ` · <span style="color:var(--accent)">${depositCount} deposit${depositCount !== 1 ? "s" : ""}</span>` : ""}</div>`;
                     html += `    </div>`;
                     html += `    <div class="chain-card-right">`;
                     html += `      <span class="asset-count-pill">${assetKeys.length} asset${assetKeys.length !== 1 ? "s" : ""}</span>`;
@@ -2651,9 +3557,8 @@
                             const isNative = ast.contract === "native";
                             html += `<span class="asset-chip${isNative ? " native" : ""}">`;
                             html += esc(ak);
-                            if (!isNative) {
+                            if (!isNative)
                                 html += ` <span style="font-size:9px;opacity:.6">${esc(trunc(ast.contract || "", 5, 3))}</span>`;
-                            }
                             html += ` <button class="chip-del" title="Remove ${esc(ak)}" onclick="confirmDelAsset('${esc(name)}','${esc(ak)}')">`;
                             html += `   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
                             html += ` </button>`;
@@ -2665,7 +3570,7 @@
                     if (rpcs.length > 0) {
                         html += `<div class="chain-sep"></div>`;
                         html += `<div class="chain-rpc-section">`;
-                        html += `  <div class="chain-rpc-ttl">RPC Endpoints</div>`;
+                        html += `  <div class="chain-rpc-ttl">RPC Endpoints (${rpcs.length})</div>`;
                         rpcs.slice(0, 3).forEach((url) => {
                             html += `<div class="rpc-url">${esc(url)}</div>`;
                         });
@@ -2677,7 +3582,9 @@
                     html += `</div>`;
                 });
 
+                const prevScroll = list.scrollTop;
                 list.innerHTML = html;
+                list.scrollTop = prevScroll;
             }
 
             // ===== Delete Confirmations =====
@@ -2700,7 +3607,7 @@
                             );
                         }
                         toast("Address removed", "ok");
-                        await fetchAddresses();
+                        await refreshAll();
                     } catch (e) {
                         toast("Error: " + e.message, "err");
                     }
@@ -2710,9 +3617,7 @@
 
             function confirmDelChain(name) {
                 document.getElementById("delMsg").textContent =
-                    'Delete chain "' +
-                    name +
-                    '" and all its assets? This cannot be undone.';
+                    `Delete chain "${name}" and all its assets? This cannot be undone.`;
                 pendingDel = async () => {
                     try {
                         const r = await fetch(
@@ -2728,8 +3633,8 @@
                                     "Failed",
                             );
                         }
-                        toast('Chain "' + name + '" deleted', "ok");
-                        await fetchConfig();
+                        toast(`Chain "${name}" deleted`, "ok");
+                        await refreshAll();
                     } catch (e) {
                         toast("Error: " + e.message, "err");
                     }
@@ -2739,7 +3644,7 @@
 
             function confirmDelAsset(chain, asset) {
                 document.getElementById("delMsg").textContent =
-                    'Remove asset "' + asset + '" from chain "' + chain + '"?';
+                    `Remove asset "${asset}" from chain "${chain}"?`;
                 pendingDel = async () => {
                     try {
                         const r = await fetch(
@@ -2759,8 +3664,8 @@
                                     "Failed",
                             );
                         }
-                        toast('Asset "' + asset + '" removed', "ok");
-                        await fetchConfig();
+                        toast(`Asset "${asset}" removed`, "ok");
+                        await refreshAll();
                     } catch (e) {
                         toast("Error: " + e.message, "err");
                     }
@@ -2778,6 +3683,16 @@
                         await fn();
                     }
                 });
+
+            // ===== Refresh all =====
+            async function refreshAll() {
+                await Promise.all([
+                    fetchDeposits(),
+                    fetchAddresses(),
+                    fetchBalances(),
+                    fetchConfig(),
+                ]);
+            }
 
             // ===== Add Address =====
             document
@@ -2800,7 +3715,6 @@
                         toast("Address is required", "err");
                         return;
                     }
-
                     try {
                         const body = label
                             ? { label, address: addr }
@@ -2823,7 +3737,7 @@
                         document.getElementById("addrLabel").value = "";
                         document.getElementById("addrValue").value = "";
                         closeModal("addAddrModal");
-                        await fetchAddresses();
+                        await refreshAll(); // Refresh everything immediately including deposits
                     } catch (e) {
                         toast("Error: " + e.message, "err");
                     }
@@ -2891,7 +3805,7 @@
                                     "Failed",
                             );
                         }
-                        toast('Chain "' + name + '" added', "ok");
+                        toast(`Chain "${name}" added`, "ok");
                         [
                             "chainName",
                             "chainCaip2",
@@ -2902,7 +3816,7 @@
                             document.getElementById(id).value = "";
                         });
                         closeModal("addChainModal");
-                        await fetchConfig();
+                        await refreshAll();
                     } catch (e) {
                         toast("Error: " + e.message, "err");
                     }
@@ -2911,7 +3825,14 @@
             // ===== Add Asset =====
             document
                 .getElementById("addAssetBtn")
-                .addEventListener("click", () => openModal("addAssetModal"));
+                .addEventListener("click", () => {
+                    const sel = document.getElementById("assetChain");
+                    sel.innerHTML = '<option value="">Select a chain…</option>';
+                    Object.keys(configData.chains || {}).forEach((name) => {
+                        sel.innerHTML += `<option value="${esc(name)}">${esc(name)}</option>`;
+                    });
+                    openModal("addAssetModal");
+                });
 
             document
                 .getElementById("addAssetSubmit")
@@ -2966,7 +3887,7 @@
                                     "Failed",
                             );
                         }
-                        toast('Asset "' + name + '" added', "ok");
+                        toast(`Asset "${name}" added`, "ok");
                         [
                             "assetChain",
                             "assetName",
@@ -2976,7 +3897,7 @@
                             document.getElementById(id).value = "";
                         });
                         closeModal("addAssetModal");
-                        await fetchConfig();
+                        await refreshAll();
                     } catch (e) {
                         toast("Error: " + e.message, "err");
                     }
@@ -2985,20 +3906,20 @@
             // ===== Refresh button =====
             document
                 .getElementById("refreshBtn")
-                .addEventListener("click", () => {
-                    fetchDeposits();
-                    fetchAddresses();
-                    fetchConfig();
-                });
+                .addEventListener("click", () => refreshAll());
 
             // ===== Polling =====
             function startPolling() {
                 if (pollTimer) clearInterval(pollTimer);
                 setStatus("cing");
-                fetchDeposits();
-                fetchAddresses();
-                fetchConfig();
-                pollTimer = setInterval(fetchDeposits, 15000);
+                startEvents();
+                refreshAll();
+                startPollRing();
+                pollTimer = setInterval(() => {
+                    fetchDeposits();
+                    fetchBalances();
+                    fetchAddresses();
+                }, POLL_INTERVAL);
             }
 
             startPolling();

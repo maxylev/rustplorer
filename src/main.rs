@@ -1,13 +1,20 @@
 use anyhow::Result;
-use clap::Parser;
-use rustplorer::{AppConfig, DepositResult, Format, load_addresses, load_config, run_indexer};
+use axum::response::sse::{Event, KeepAlive, Sse};
+use clap::{Parser, Subcommand};
+use futures::Stream;
+use rustplorer::{
+    AppConfig, BalanceSummary, DepositResult, Format, load_addresses, load_config, run_indexer,
+    summarize_balances,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
+use std::convert::Infallible;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, broadcast};
 use toml_edit::{DocumentMut, Item, Table};
 
 // ---------------------------------------------------------------------------
@@ -105,14 +112,19 @@ fn meta_total(total: usize) -> serde_json::Value {
 #[command(
     name = "rustplorer",
     version,
-    about = "High-performance multi-chain deposit detector using only public RPC endpoints"
+    about = "High-performance multi-chain deposit detector using only public RPC endpoints",
+    subcommand_negates_reqs = true,
+    args_conflicts_with_subcommands = true
 )]
 struct CliArgs {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     #[arg(short, long, default_value = "Config.toml")]
     config: PathBuf,
 
     #[arg(short, long, help = "Text file with target addresses (one per line)")]
-    addresses: PathBuf,
+    addresses: Option<PathBuf>,
 
     #[arg(short, long, value_enum, default_value_t = Format::Json, help = "Output format")]
     format: Format,
@@ -179,6 +191,28 @@ struct CliArgs {
     remove_asset: Option<String>,
 }
 
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Run the bundled live dashboard demo (wraps tests/scripts/demo.sh)
+    Demo {
+        /// API/dashboard port
+        #[arg(long, default_value_t = 3000)]
+        port: u16,
+
+        /// Watch polling and transaction-generator interval in seconds
+        #[arg(long, default_value_t = 15)]
+        interval: u64,
+
+        /// Open the dashboard in your browser (macOS)
+        #[arg(long)]
+        open: bool,
+
+        /// Skip local anvil/Solana/Bitcoin nodes and use public RPCs only
+        #[arg(long)]
+        no_local_chains: bool,
+    },
+}
+
 // ---------------------------------------------------------------------------
 // API State — holds an in-memory ring buffer for instant deposit serving
 // ---------------------------------------------------------------------------
@@ -190,6 +224,8 @@ struct ApiState {
     /// O(1) in-memory ring buffer — the `/deposits` endpoint reads from here
     /// instead of re-parsing the entire JSONL file from disk on every request.
     recent_deposits: Arc<RwLock<VecDeque<DepositResult>>>,
+    /// Broadcast stream for live dashboard updates over Server-Sent Events.
+    event_tx: broadcast::Sender<DepositResult>,
 }
 
 // ---------------------------------------------------------------------------
@@ -249,19 +285,21 @@ async fn main() -> Result<()> {
 
     let args = CliArgs::parse();
 
+    if let Some(command) = &args.command {
+        return run_command(command);
+    }
+
     // CLI: Address management
     if let Some(ref addrs) = args.add_address {
-        manage_addresses(&args.addresses, addrs, true)?;
-        tracing::info!("Added {} address(es) to {:?}", addrs.len(), args.addresses);
+        let addresses = required_addresses(&args)?;
+        manage_addresses(addresses, addrs, true)?;
+        tracing::info!("Added {} address(es) to {:?}", addrs.len(), addresses);
         return Ok(());
     }
     if let Some(ref addrs) = args.remove_address {
-        manage_addresses(&args.addresses, addrs, false)?;
-        tracing::info!(
-            "Removed {} address(es) from {:?}",
-            addrs.len(),
-            args.addresses
-        );
+        let addresses = required_addresses(&args)?;
+        manage_addresses(addresses, addrs, false)?;
+        tracing::info!("Removed {} address(es) from {:?}", addrs.len(), addresses);
         return Ok(());
     }
 
@@ -292,24 +330,88 @@ async fn main() -> Result<()> {
     }
 }
 
+fn required_addresses(args: &CliArgs) -> Result<&PathBuf> {
+    args.addresses.as_ref().ok_or_else(|| {
+        anyhow::anyhow!(
+            "--addresses <PATH> is required for scans, watch mode, and address management"
+        )
+    })
+}
+
+fn run_command(command: &Commands) -> Result<()> {
+    match command {
+        Commands::Demo {
+            port,
+            interval,
+            open,
+            no_local_chains,
+        } => run_demo(*port, *interval, *open, *no_local_chains),
+    }
+}
+
+fn run_demo(port: u16, interval: u64, open: bool, no_local_chains: bool) -> Result<()> {
+    let tmp_root =
+        std::env::temp_dir().join(format!("rustplorer-demo-bundle-{}", std::process::id()));
+    let script_dir = tmp_root.join("tests").join("scripts");
+    std::fs::create_dir_all(&script_dir)?;
+    std::fs::write(
+        tmp_root.join("Config.example.toml"),
+        include_str!("../Config.example.toml"),
+    )?;
+    std::fs::write(
+        tmp_root.join("addresses.example.txt"),
+        include_str!("../addresses.example.txt"),
+    )?;
+    let script_path = script_dir.join("demo.sh");
+    std::fs::write(&script_path, include_str!("../tests/scripts/demo.sh"))?;
+
+    let current_exe = std::env::current_exe()?;
+    let mut cmd = Command::new("bash");
+    cmd.arg(&script_path)
+        .arg("--port")
+        .arg(port.to_string())
+        .arg("--interval")
+        .arg(interval.to_string())
+        .env("RUSTPLORER_BIN", current_exe)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    if open {
+        cmd.arg("--open");
+    }
+    if no_local_chains {
+        cmd.arg("--no-local-chains");
+    }
+
+    let status = cmd.status()?;
+    let _ = std::fs::remove_dir_all(&tmp_root);
+    if !status.success() {
+        anyhow::bail!("demo exited with status {}", status);
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Watch Mode (Daemon)
 // ---------------------------------------------------------------------------
 
 async fn run_watch_mode(args: CliArgs) -> Result<()> {
     tracing::info!(interval = args.interval, "Starting daemon mode");
+    let addresses_path = required_addresses(&args)?.clone();
 
     // In-memory ring buffer for the API — holds the last 100 deposits for
     // instant serving, eliminating the catastrophic disk I/O from reading
     // the entire JSONL file on every HTTP poll.
     let recent_deposits = Arc::new(RwLock::new(VecDeque::with_capacity(100)));
+    let (event_tx, _) = broadcast::channel::<DepositResult>(1024);
 
     if let Some(port) = args.api_port {
         let host = args.host.clone().unwrap_or_else(|| "127.0.0.1".to_string());
         let state = ApiState {
-            file_path: args.addresses.clone(),
+            file_path: addresses_path.clone(),
             config_path: args.config.clone(),
             recent_deposits: Arc::clone(&recent_deposits),
+            event_tx: event_tx.clone(),
         };
 
         tokio::spawn(async move {
@@ -327,6 +429,8 @@ async fn run_watch_mode(args: CliArgs) -> Result<()> {
                     axum::routing::delete(api_remove_address),
                 )
                 .route("/v1/deposits", axum::routing::get(api_list_deposits))
+                .route("/v1/events", axum::routing::get(api_events))
+                .route("/v1/balances", axum::routing::get(api_list_balances))
                 .route("/v1/config", axum::routing::get(api_get_config))
                 .route("/v1/chains", axum::routing::post(api_add_chain))
                 .route("/v1/chains/{name}", axum::routing::delete(api_remove_chain))
@@ -372,7 +476,7 @@ async fn run_watch_mode(args: CliArgs) -> Result<()> {
             tracing::info!(chains = config.chains.len(), "Loaded configuration");
         }
 
-        let targets = load_addresses(&args.addresses)?;
+        let targets = load_addresses(&addresses_path)?;
 
         if args.verbose {
             tracing::info!(count = targets.len(), "Cached target addresses in memory");
@@ -404,6 +508,7 @@ async fn run_watch_mode(args: CliArgs) -> Result<()> {
                     cache.pop_back();
                 }
                 cache.push_front(d.clone());
+                let _ = event_tx.send(d.clone());
             }
         }
 
@@ -441,7 +546,7 @@ async fn run_single(args: CliArgs) -> Result<()> {
         tracing::info!(chains = config.chains.len(), "Loaded configuration");
     }
 
-    let targets = load_addresses(&args.addresses)?;
+    let targets = load_addresses(required_addresses(&args)?)?;
     tracing::info!(count = targets.len(), "Cached target addresses in memory");
 
     let index_result = run_indexer(config.chains, Arc::new(targets)).await?;
@@ -592,6 +697,19 @@ fn load_addresses_from_api(path: &std::path::Path) -> Result<Vec<String>> {
         }
     }
     Ok(addrs)
+}
+
+fn asset_decimals_by_chain(config: &AppConfig) -> HashMap<(String, String), u32> {
+    let mut out = HashMap::new();
+    for (chain_name, chain) in &config.chains {
+        for (asset_name, asset) in &chain.assets {
+            out.insert((chain_name.clone(), asset_name.clone()), asset.decimals);
+            if asset.contract.eq_ignore_ascii_case("native") {
+                out.insert((chain_name.clone(), "Native".to_string()), asset.decimals);
+            }
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -795,6 +913,52 @@ async fn api_list_deposits(
         cache.iter().cloned().collect(),
         meta_total(total),
     ))
+}
+
+/// Server-Sent Events endpoint for live dashboard deposit updates.
+async fn api_events(
+    axum::extract::State(state): axum::extract::State<ApiState>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = state.event_tx.subscribe();
+    let stream = futures::stream::unfold(rx, |mut rx| async move {
+        loop {
+            match rx.recv().await {
+                Ok(deposit) => {
+                    let event = match serde_json::to_string(&deposit) {
+                        Ok(json) => Event::default().event("deposit").data(json),
+                        Err(_) => Event::default().event("error").data("serialize"),
+                    };
+                    return Some((Ok(event), rx));
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => return None,
+            }
+        }
+    });
+
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(std::time::Duration::from_secs(15))
+            .text("keep-alive"),
+    )
+}
+
+/// Return per-address balances derived from the in-memory deposit stream.
+/// Amounts are summed from raw integer units and grouped by address, chain, and
+/// asset so each address card can render exact per-asset deposit totals.
+async fn api_list_balances(
+    axum::extract::State(state): axum::extract::State<ApiState>,
+) -> axum::Json<ApiResponse<Vec<BalanceSummary>>> {
+    let cache = state.recent_deposits.read().await;
+    let config = load_config(&state.config_path).unwrap_or(AppConfig {
+        chains: HashMap::new(),
+    });
+    let decimals_by_asset = asset_decimals_by_chain(&config);
+    let deposits: Vec<DepositResult> = cache.iter().cloned().collect();
+    let balances = summarize_balances(&deposits, &decimals_by_asset);
+    let total = balances.len();
+
+    axum::Json(ApiResponse::with_meta(balances, meta_total(total)))
 }
 
 /// Serve the current configuration so the UI can list existing chains/assets.

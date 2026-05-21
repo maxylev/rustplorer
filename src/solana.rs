@@ -65,26 +65,157 @@ impl SolanaScanner {
             DEFAULT_MAX_CONCURRENT
         };
 
-        let slot_range: Vec<u64> = (start..=end).collect();
-        let fetches = futures::stream::iter(slot_range.into_iter().map(|slot| {
+        // Collect all relevant signatures by watched address, then fetch each
+        // transaction. This is the idiomatic Solana deposit-monitoring pattern
+        // and works on solana-test-validator, where getBlock may omit user txs.
+        //
+        // SPL token transfers normally reference the recipient token account,
+        // not necessarily the wallet owner. Add configured token accounts for
+        // every watched owner so scan_spl_static can still detect owner-level
+        // deposits from transaction token-balance metadata.
+        let mut signature_query_addresses: HashSet<String> = targets.iter().cloned().collect();
+        for owner in targets.iter() {
+            for asset in self.assets.values() {
+                if asset.contract.eq_ignore_ascii_case("native") {
+                    continue;
+                }
+
+                let payload = json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getTokenAccountsByOwner",
+                    "params": [
+                        owner,
+                        { "mint": asset.contract },
+                        { "encoding": "jsonParsed", "commitment": "confirmed" }
+                    ]
+                });
+
+                let response = match execute_rpc(&client, &self.rpc_urls, &payload).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::warn!(owner = %owner, mint = %asset.contract, error = %e, "getTokenAccountsByOwner failed");
+                        continue;
+                    }
+                };
+
+                if let Some(accounts) = response["result"]["value"].as_array() {
+                    for account in accounts {
+                        if let Some(pubkey) = account["pubkey"].as_str() {
+                            signature_query_addresses.insert(pubkey.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut all_sigs: Vec<(String, u64)> = Vec::new();
+
+        // Some local validators can report `getSlot == 0` for a short time even
+        // after confirmed transactions are visible through
+        // `getSignaturesForAddress`. Treat a zero-width Solana range as an
+        // open-ended scan from `start` so local/demo scans don't miss fresh
+        // deposits merely because the tip RPC lagged behind signature history.
+        let effective_end = if end <= start { u64::MAX } else { end };
+
+        for addr in signature_query_addresses.iter() {
+            let mut before: Option<String> = None;
+
+            loop {
+                let mut params = json!([
+                    addr,
+                    {
+                        "limit": 1000,
+                        "minContextSlot": start,
+                        "commitment": "confirmed"
+                    }
+                ]);
+                if let Some(ref cursor) = before {
+                    params[1]["before"] = json!(cursor);
+                }
+
+                let payload = json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getSignaturesForAddress",
+                    "params": params
+                });
+
+                let response = match execute_rpc(&client, &self.rpc_urls, &payload).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::warn!(addr = %addr, error = %e, "getSignaturesForAddress failed");
+                        break;
+                    }
+                };
+
+                let sigs = match response["result"].as_array() {
+                    Some(a) => a,
+                    None => break,
+                };
+
+                if sigs.is_empty() {
+                    break;
+                }
+
+                let mut done = false;
+                for sig_entry in sigs {
+                    let slot = sig_entry["slot"].as_u64().unwrap_or(0);
+                    if slot > effective_end {
+                        // Results are newest-first. Keep paginating until we
+                        // reach signatures inside or below the requested range.
+                        continue;
+                    }
+                    if slot < start {
+                        done = true;
+                        break;
+                    }
+                    if let Some(sig) = sig_entry["signature"].as_str() {
+                        all_sigs.push((sig.to_string(), slot));
+                    }
+                }
+
+                if done {
+                    break;
+                }
+
+                before = sigs
+                    .last()
+                    .and_then(|e| e["signature"].as_str())
+                    .map(ToString::to_string);
+
+                if before.is_none() {
+                    break;
+                }
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+        }
+
+        // Multiple watched addresses can appear in the same transaction.
+        all_sigs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        all_sigs.dedup_by(|a, b| a.0 == b.0);
+
+        let fetches = futures::stream::iter(all_sigs.into_iter().map(|(sig, slot)| {
             let client = Arc::clone(&client);
             let rpc_urls = self.rpc_urls.clone();
             let caip2 = self.caip2.clone();
             let chain_name = self.name.clone();
             let targets = Arc::clone(&targets);
             let tx = tx.clone();
+            let assets = self.assets.clone();
+
             async move {
                 let payload = json!({
                     "jsonrpc": "2.0",
                     "id": 1,
-                    "method": "getBlock",
+                    "method": "getTransaction",
                     "params": [
-                        slot,
+                        sig,
                         {
                             "encoding": "json",
-                            "transactionDetails": "full",
-                            "rewards": false,
-                            "maxSupportedTransactionVersion": 0
+                            "maxSupportedTransactionVersion": 0,
+                            "commitment": "confirmed"
                         }
                     ]
                 });
@@ -92,36 +223,30 @@ impl SolanaScanner {
                 let response = match execute_rpc(&client, &rpc_urls, &payload).await {
                     Ok(r) => r,
                     Err(e) => {
-                        tracing::warn!(caip2 = %caip2, slot = slot, error = %e, "Failed to fetch slot");
+                        tracing::warn!(caip2 = %caip2, sig = %sig, error = %e, "getTransaction failed");
                         return;
                     }
                 };
 
-                if let Some(transactions) = response["result"]["transactions"].as_array() {
-                    for txn in transactions {
-                        let tx_hash = txn["transaction"]["signatures"]
-                            .as_array()
-                            .and_then(|sig| sig.first())
-                            .and_then(|s| s.as_str())
-                            .unwrap_or("unknown")
-                            .to_string();
-                        let ctx = ScanCtx {
-                            slot,
-                            name: &chain_name,
-                            tx_hash: &tx_hash,
-                            targets: &targets,
-                            tx: &tx,
-                        };
-                        process_transaction_static(txn, &ctx).await;
-                    }
+                let txn = &response["result"];
+                if txn.is_null() {
+                    return;
                 }
+
+                let ctx = ScanCtx {
+                    slot,
+                    name: &chain_name,
+                    tx_hash: &sig,
+                    targets: &targets,
+                    tx: &tx,
+                    assets: &assets,
+                };
+                process_transaction_static(txn, &ctx).await;
             }
         }))
         .buffer_unordered(max_concurrent);
 
         fetches.collect::<Vec<_>>().await;
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
 
         Ok(())
     }
@@ -133,6 +258,7 @@ struct ScanCtx<'a> {
     tx_hash: &'a str,
     targets: &'a Arc<HashSet<String>>,
     tx: &'a mpsc::Sender<DepositResult>,
+    assets: &'a HashMap<String, AssetConfig>,
 }
 
 async fn process_transaction_static(txn: &serde_json::Value, ctx: &ScanCtx<'_>) {
@@ -236,9 +362,24 @@ async fn scan_spl_static(
         }
 
         let mint = post_log["mint"].as_str().unwrap_or("unknown");
+        let configured_asset = ctx
+            .assets
+            .iter()
+            .find(|(_, asset)| asset.contract == mint)
+            .map(|(name, asset)| (name.as_str(), asset.decimals));
 
-        let configured_decimals =
-            post_log["uiTokenAmount"]["decimals"].as_u64().unwrap_or(6) as u32;
+        if ctx
+            .assets
+            .values()
+            .any(|asset| !asset.contract.eq_ignore_ascii_case("native"))
+            && configured_asset.is_none()
+        {
+            continue;
+        }
+
+        let configured_decimals = configured_asset
+            .map(|(_, decimals)| decimals)
+            .unwrap_or_else(|| post_log["uiTokenAmount"]["decimals"].as_u64().unwrap_or(6) as u32);
 
         let post_amount_str = post_log["uiTokenAmount"]["amount"].as_str().unwrap_or("0");
         let post_amount = post_amount_str.parse::<BigUint>().unwrap_or_default();
@@ -284,7 +425,9 @@ async fn scan_spl_static(
             .tx
             .send(DepositResult {
                 chain: ctx.name.to_string(),
-                asset: mint.to_string(),
+                asset: configured_asset
+                    .map(|(name, _)| name.to_string())
+                    .unwrap_or_else(|| mint.to_string()),
                 from_address: from_addr,
                 to_address: owner.to_string(),
                 amount_raw: diff_str.clone(),

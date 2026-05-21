@@ -40,6 +40,9 @@ Rustplorer continuously watches blockchain blocks for incoming deposits to your 
 # Install
 cargo install rustplorer
 
+# Try the local live dashboard demo
+rustplorer demo --open
+
 # Create a config file (see Configuration below)
 cp Config.example.toml Config.toml
 
@@ -55,6 +58,11 @@ rustplorer --config Config.toml --addresses addresses.txt \
 ```
 
 Open `http://localhost:3000/` in your browser to see the dashboard.
+
+`rustplorer demo` is the fastest way to see the package working: it starts the
+same bundled demo used by `tests/scripts/demo.sh`, launches the API/dashboard,
+and, when local tooling is available, generates live deposits against local EVM,
+Solana, and Bitcoin regtest chains.
 
 ---
 
@@ -197,10 +205,11 @@ Solana benefits from `max_concurrent = 1` and `delay_ms = 500` to avoid 429 erro
 
 ```
 rustplorer [OPTIONS]
+rustplorer demo [OPTIONS]
 
 Options:
   -c, --config <PATH>           Config file path [default: Config.toml]
-  -a, --addresses <PATH>        Text file with target addresses (one per line)
+  -a, --addresses <PATH>        Text file with target addresses (required for scans/watch/address edits)
   -f, --format <FORMAT>         Output format: json, csv [default: json]
   -o, --output <PATH>           Save output to file (stdout if omitted)
       --network <CAIP2>         Override network to scan (e.g. eip155:1)
@@ -220,6 +229,9 @@ Options:
       --remove-asset <SPEC>     Remove asset: CHAIN_NAME,ASSET_NAME
   -h, --help                    Print help
   -V, --version                 Print version
+
+Commands:
+  demo                          Run the bundled live dashboard demo
 ```
 
 ### Examples
@@ -233,6 +245,12 @@ rustplorer -c Config.toml -a addresses.txt -f csv -o deposits.csv
 
 # Daemon mode: poll every 30s, serve API on port 8080
 rustplorer -c Config.toml -a addresses.txt --watch --interval 30 --api-port 8080 -v
+
+# Local live dashboard demo (same implementation as tests/scripts/demo.sh)
+rustplorer demo --port 3000 --interval 15 --open
+
+# Demo without local anvil/Solana/Bitcoin nodes; uses Config.example.toml public RPCs
+rustplorer demo --no-local-chains
 
 # Add a new chain via CLI (preserves comments in Config.toml)
 rustplorer --add-chain "arbitrum,eip155:42161,https://arb1.arbitrum.io/rpc,https://arbitrum.drpc.org"
@@ -259,6 +277,8 @@ When started with `--api-port`, rustplorer serves a REST API bound to `127.0.0.1
 |--------|------|-------------|
 | `GET` | `/` | Built-in dashboard (HTML) |
 | `GET` | `/v1/deposits` | Recent deposits from in-memory ring buffer (cap 100) |
+| `GET` | `/v1/events` | Server-Sent Events stream for new deposits (`deposit` events) |
+| `GET` | `/v1/balances` | Deposit totals grouped by address, chain, and asset |
 | `GET` | `/v1/addresses` | List tracked addresses |
 | `POST` | `/v1/addresses` | Add addresses: `{"address": "0x..."}` or `{"addresses": ["0x1", "0x2"]}` |
 | `DELETE` | `/v1/addresses/:addr` | Remove a tracked address |
@@ -327,6 +347,49 @@ curl http://127.0.0.1:3000/v1/deposits
   "meta": {
     "total": 4
   }
+}
+```
+
+#### `GET /v1/events` — Live Deposit Stream
+
+Streams newly detected deposits as Server-Sent Events. This is best for browser
+dashboards and simple live clients. It is not a replacement for
+`GET /v1/deposits`, because clients that connect late need a snapshot first.
+
+```bash
+curl -N http://127.0.0.1:3000/v1/events
+```
+
+```text
+event: deposit
+data: {"chain":"ethereum","asset":"USDC","from_address":"0x...","to_address":"0x...","amount_raw":"50000000","amount_clean":"50","block_number":19000123,"tx_hash":"0x..."}
+```
+
+#### `GET /v1/balances` — Derived Deposit Totals
+
+Returns exact totals derived from the recent deposit buffer, grouped by recipient
+address, chain, and asset. This endpoint intentionally stays separate from
+`/v1/events`: `/events` is a push stream of new facts, while `/balances` is a
+small read model that is convenient for dashboards and programmatic clients.
+
+```bash
+curl http://127.0.0.1:3000/v1/balances
+```
+
+```json
+{
+  "data": [
+    {
+      "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "chain": "ethereum",
+      "asset": "USDC",
+      "amount_raw": "50000000",
+      "amount_clean": "50",
+      "decimals": 6,
+      "deposit_count": 1
+    }
+  ],
+  "meta": { "total": 1 }
 }
 ```
 
@@ -752,6 +815,15 @@ All config mutations use `toml_edit` internally, so comments and formatting in `
 
 The built-in dashboard at `http://localhost:3000/` provides a real-time UI for monitoring deposits, managing addresses, and configuring chains and assets.
 
+For a one-command local demo, run:
+
+```bash
+rustplorer demo --open
+```
+
+The dashboard loads an initial snapshot from `/v1/deposits`, receives live
+updates from `/v1/events`, and displays per-address totals from `/v1/balances`.
+
 ### Features
 
 - **Dark/light theme** with toggle (persisted in `localStorage`)
@@ -839,6 +911,29 @@ pub struct DepositResult {
     pub block_number: u64,     // Block/slot height
     pub tx_hash: String,       // Transaction hash
 }
+```
+
+### Programmatic Rust Usage
+
+The library API stays small: load config, load addresses, run the indexer, then
+optionally derive grouped totals with the same helper used by the HTTP API.
+
+```rust
+use std::{collections::HashMap, path::Path, sync::Arc};
+
+use rustplorer::{load_addresses, load_config, run_indexer, summarize_balances};
+
+# async fn example() -> anyhow::Result<()> {
+let config = load_config(Path::new("Config.toml"))?;
+let targets = Arc::new(load_addresses(Path::new("addresses.txt"))?);
+
+let result = run_indexer(config.chains, targets).await?;
+let balances = summarize_balances(&result.deposits, &HashMap::new());
+
+println!("deposits: {}", result.deposits.len());
+println!("balance rows: {}", balances.len());
+# Ok(())
+# }
 ```
 
 ### RPC Error Handling
@@ -1067,6 +1162,4 @@ RUST_LOG=rustplorer=warn,rustplorer::rpc=debug rustplorer --watch --api-port 300
 
 ## License
 
-Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+[MIT license](LICENSE)

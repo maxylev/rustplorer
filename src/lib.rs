@@ -6,7 +6,10 @@ pub mod solana;
 
 use alloy_primitives::Address;
 use hashbrown::HashSet;
+use num_bigint::BigUint;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -93,6 +96,22 @@ pub struct DepositResult {
     pub tx_hash: String,
 }
 
+/// Per-address, per-chain, per-asset total derived from a list of deposits.
+///
+/// This is the same summary shape exposed by `GET /v1/balances` and used by
+/// the dashboard. It is intentionally derived from deposit events rather than
+/// fetched from chain state, so it represents deposits observed by rustplorer.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct BalanceSummary {
+    pub address: String,
+    pub chain: String,
+    pub asset: String,
+    pub amount_raw: String,
+    pub amount_clean: String,
+    pub decimals: u32,
+    pub deposit_count: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct IndexerResult {
     pub deposits: Vec<DepositResult>,
@@ -103,6 +122,102 @@ pub struct IndexerResult {
 pub enum Format {
     Json,
     Csv,
+}
+
+/// Build an exact deposit-total summary grouped by recipient address, chain,
+/// and asset.
+///
+/// `decimals_by_asset` is keyed by `(chain_name, asset_name)`. Missing entries
+/// fall back to simple chain defaults: Bitcoin = 8, Solana = 9, everything else
+/// = 18.
+pub fn summarize_balances(
+    deposits: &[DepositResult],
+    decimals_by_asset: &HashMap<(String, String), u32>,
+) -> Vec<BalanceSummary> {
+    let mut grouped: BTreeMap<(String, String, String), (BigUint, u32, usize)> = BTreeMap::new();
+
+    for deposit in deposits {
+        let key = (
+            deposit.to_address.clone(),
+            deposit.chain.clone(),
+            deposit.asset.clone(),
+        );
+        let decimals = decimals_by_asset
+            .get(&(deposit.chain.clone(), deposit.asset.clone()))
+            .copied()
+            .unwrap_or_else(|| infer_decimals(deposit));
+        let amount = parse_raw_amount(&deposit.amount_raw)
+            .unwrap_or_else(|| decimal_to_raw(&deposit.amount_clean, decimals).unwrap_or_default());
+        let entry = grouped
+            .entry(key)
+            .or_insert((BigUint::default(), decimals, 0));
+        entry.0 += amount;
+        entry.2 += 1;
+    }
+
+    grouped
+        .into_iter()
+        .map(
+            |((address, chain, asset), (amount, decimals, deposit_count))| BalanceSummary {
+                address,
+                chain,
+                asset,
+                amount_raw: amount.to_string(),
+                amount_clean: format_raw_amount(&amount, decimals),
+                decimals,
+                deposit_count,
+            },
+        )
+        .collect()
+}
+
+fn parse_raw_amount(raw: &str) -> Option<BigUint> {
+    let s = raw.trim();
+    if s.is_empty() {
+        return None;
+    }
+    if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        BigUint::parse_bytes(hex.as_bytes(), 16)
+    } else {
+        BigUint::parse_bytes(s.as_bytes(), 10)
+    }
+}
+
+fn decimal_to_raw(clean: &str, decimals: u32) -> Option<BigUint> {
+    let amount = clean.parse::<Decimal>().ok()?;
+    let scale = Decimal::from(10u64.checked_pow(decimals.min(18))?);
+    let raw = amount * scale;
+    BigUint::parse_bytes(raw.trunc().to_string().as_bytes(), 10)
+}
+
+fn format_raw_amount(amount: &BigUint, decimals: u32) -> String {
+    if decimals == 0 {
+        return amount.to_string();
+    }
+
+    let mut digits = amount.to_string();
+    let decimals = decimals as usize;
+    if digits.len() <= decimals {
+        digits = format!("{}{}", "0".repeat(decimals + 1 - digits.len()), digits);
+    }
+    let split_at = digits.len() - decimals;
+    let whole = &digits[..split_at];
+    let frac = digits[split_at..].trim_end_matches('0');
+    if frac.is_empty() {
+        whole.to_string()
+    } else {
+        format!("{}.{}", whole, frac)
+    }
+}
+
+fn infer_decimals(deposit: &DepositResult) -> u32 {
+    if deposit.chain.eq_ignore_ascii_case("bitcoin") {
+        8
+    } else if deposit.chain.eq_ignore_ascii_case("solana") {
+        9
+    } else {
+        18
+    }
 }
 
 // ---------------------------------------------------------------------------
