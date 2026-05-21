@@ -6,7 +6,7 @@ use hashbrown::HashSet;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 
 const SOL_DECIMALS: u32 = 9;
 const DEFAULT_RPC_DELAY_MS: u64 = 200;
@@ -15,16 +15,19 @@ const DEFAULT_MAX_CONCURRENT: usize = 1;
 pub struct SolanaScanner {
     pub rpc_urls: Vec<String>,
     pub caip2: String,
-    pub assets: Arc<HashMap<String, AssetConfig>>,
+    pub name: String,
+    /// Chain-local assets — already scoped to this chain, no caip2 filter needed.
+    pub assets: HashMap<String, AssetConfig>,
     pub rpc_delay_ms: Option<u64>,
     pub max_concurrent: usize,
 }
 
 impl SolanaScanner {
+    /// Get the current slot tip from the Solana RPC node.
     pub async fn get_tip(
         client: &reqwest::Client,
         rpc_urls: &[String],
-    ) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<u64, anyhow::Error> {
         let payload = json!({
             "jsonrpc": "2.0",
             "id": 1,
@@ -32,7 +35,17 @@ impl SolanaScanner {
             "params": []
         });
         let res = execute_rpc(client, rpc_urls, &payload).await?;
-        Ok(res["result"].as_u64().unwrap_or(0))
+
+        if let Some(error) = res.get("error") {
+            if !error.is_null() {
+                let msg = error["message"].as_str().unwrap_or("Unknown RPC error");
+                anyhow::bail!("RPC error in getSlot: {}", msg);
+            }
+        }
+
+        res["result"]
+            .as_u64()
+            .ok_or_else(|| anyhow::anyhow!("Failed to parse slot number from RPC response"))
     }
 
     pub async fn scan(
@@ -41,8 +54,8 @@ impl SolanaScanner {
         start: u64,
         end: u64,
         targets: Arc<HashSet<String>>,
-        results: Arc<Mutex<Vec<DepositResult>>>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        tx: mpsc::Sender<DepositResult>,
+    ) -> Result<(), anyhow::Error> {
         let client = Arc::new(client);
         let delay_ms = self.rpc_delay_ms.unwrap_or(DEFAULT_RPC_DELAY_MS);
         let max_concurrent = if self.max_concurrent > 0 {
@@ -56,8 +69,9 @@ impl SolanaScanner {
             let client = Arc::clone(&client);
             let rpc_urls = self.rpc_urls.clone();
             let caip2 = self.caip2.clone();
+            let chain_name = self.name.clone();
             let targets = Arc::clone(&targets);
-            let results = Arc::clone(&results);
+            let tx = tx.clone();
             async move {
                 let payload = json!({
                     "jsonrpc": "2.0",
@@ -77,14 +91,14 @@ impl SolanaScanner {
                 let response = match execute_rpc(&client, &rpc_urls, &payload).await {
                     Ok(r) => r,
                     Err(e) => {
-                        eprintln!("[rustplorer] [{}] slot {}: {}", caip2, slot, e);
+                        tracing::warn!(caip2 = %caip2, slot = slot, error = %e, "Failed to fetch slot");
                         return;
                     }
                 };
 
                 if let Some(transactions) = response["result"]["transactions"].as_array() {
-                    for tx in transactions {
-                        let tx_hash = tx["transaction"]["signatures"]
+                    for txn in transactions {
+                        let tx_hash = txn["transaction"]["signatures"]
                             .as_array()
                             .and_then(|sig| sig.first())
                             .and_then(|s| s.as_str())
@@ -92,12 +106,12 @@ impl SolanaScanner {
                             .to_string();
                         let ctx = ScanCtx {
                             slot,
-                            caip2: &caip2,
+                            name: &chain_name,
                             tx_hash: &tx_hash,
                             targets: &targets,
-                            results: &results,
+                            tx: &tx,
                         };
-                        process_transaction_static(tx, &ctx).await;
+                        process_transaction_static(txn, &ctx).await;
                     }
                 }
             }
@@ -114,29 +128,29 @@ impl SolanaScanner {
 
 struct ScanCtx<'a> {
     slot: u64,
-    caip2: &'a str,
+    name: &'a str,
     tx_hash: &'a str,
     targets: &'a Arc<HashSet<String>>,
-    results: &'a Arc<Mutex<Vec<DepositResult>>>,
+    tx: &'a mpsc::Sender<DepositResult>,
 }
 
-async fn process_transaction_static(tx: &serde_json::Value, ctx: &ScanCtx<'_>) {
-    let account_keys = match tx["transaction"]["message"]["accountKeys"].as_array() {
+async fn process_transaction_static(txn: &serde_json::Value, ctx: &ScanCtx<'_>) {
+    let account_keys = match txn["transaction"]["message"]["accountKeys"].as_array() {
         Some(keys) => keys,
         None => return,
     };
-    let meta = match tx["meta"].as_object() {
+    let meta = match txn["meta"].as_object() {
         Some(m) => m,
         None => return,
     };
 
     let sender = account_keys
         .first()
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
+        .and_then(account_key_to_string)
+        .unwrap_or_else(|| "unknown".to_string());
 
-    scan_native_static(account_keys, meta, sender, ctx).await;
-    scan_spl_static(tx, meta, ctx).await;
+    scan_native_static(account_keys, meta, &sender, ctx).await;
+    scan_spl_static(txn, meta, ctx).await;
 }
 
 async fn scan_native_static(
@@ -155,12 +169,12 @@ async fn scan_native_static(
     };
 
     for (index, account_val) in account_keys.iter().enumerate() {
-        let addr = match account_val.as_str() {
+        let addr = match account_key_to_string(account_val) {
             Some(a) => a,
             None => continue,
         };
 
-        if !ctx.targets.contains(addr) {
+        if !ctx.targets.contains(&addr) {
             continue;
         }
 
@@ -171,22 +185,36 @@ async fn scan_native_static(
             let diff = post_bal - pre_bal;
             let diff_str = diff.to_string();
 
-            ctx.results.lock().await.push(DepositResult {
-                chain: ctx.caip2.to_string(),
-                token: "Native".to_string(),
-                from_address: sender.to_string(),
-                to_address: addr.to_string(),
-                amount_raw: diff_str.clone(),
-                amount_clean: format_to_human(&diff_str, SOL_DECIMALS),
-                block_number: ctx.slot,
-                tx_hash: ctx.tx_hash.to_string(),
-            });
+            let _ = ctx
+                .tx
+                .send(DepositResult {
+                    chain: ctx.name.to_string(),
+                    asset: "Native".to_string(),
+                    from_address: sender.to_string(),
+                    to_address: addr,
+                    amount_raw: diff_str.clone(),
+                    amount_clean: format_to_human(&diff_str, SOL_DECIMALS),
+                    block_number: ctx.slot,
+                    tx_hash: ctx.tx_hash.to_string(),
+                })
+                .await;
         }
     }
 }
 
+fn account_key_to_string(value: &serde_json::Value) -> Option<String> {
+    if let Some(s) = value.as_str() {
+        return Some(s.to_string());
+    }
+
+    value
+        .get("pubkey")
+        .and_then(|pubkey| pubkey.as_str())
+        .map(ToString::to_string)
+}
+
 async fn scan_spl_static(
-    _tx: &serde_json::Value,
+    _txn: &serde_json::Value,
     meta: &serde_json::Map<String, serde_json::Value>,
     ctx: &ScanCtx<'_>,
 ) {
@@ -227,15 +255,18 @@ async fn scan_spl_static(
             }
         }
 
-        ctx.results.lock().await.push(DepositResult {
-            chain: ctx.caip2.to_string(),
-            token: mint.to_string(),
-            from_address: from_addr,
-            to_address: owner.to_string(),
-            amount_raw: raw_amount.to_string(),
-            amount_clean: format_to_human(raw_amount, configured_decimals),
-            block_number: ctx.slot,
-            tx_hash: ctx.tx_hash.to_string(),
-        });
+        let _ = ctx
+            .tx
+            .send(DepositResult {
+                chain: ctx.name.to_string(),
+                asset: mint.to_string(),
+                from_address: from_addr,
+                to_address: owner.to_string(),
+                amount_raw: raw_amount.to_string(),
+                amount_clean: format_to_human(raw_amount, configured_decimals),
+                block_number: ctx.slot,
+                tx_hash: ctx.tx_hash.to_string(),
+            })
+            .await;
     }
 }

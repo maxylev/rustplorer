@@ -1,7 +1,8 @@
 [package]
 name = "rustplorer"
-version = "0.5.1"
-edition = "2021"
+version = "0.8.0"
+edition = "2024"
+rust-version = "1.95.0"
 description = "High-performance multi-chain deposit detector using public RPC endpoints"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/maxylev/rustplorer"
@@ -18,20 +19,40 @@ name = "rustplorer"
 path = "src/lib.rs"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+# Core async & network
+tokio = { version = "1.52", features = ["full"] }
 reqwest = { version = "0.13", features = ["json"] }
+axum = "0.8"
+
+# Serialization & Config
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-toml = "1"
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+toml_edit = { version = "0.25", features = ["serde"] }
+
+# Concurrency & Utils
 futures = "0.3"
-hashbrown = "0.15"
+hashbrown = "0.17"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 hex = "0.4"
-axum = "0.7"
-rust_decimal = "1.33"
+rust_decimal = "1.42"
 num-bigint = "0.4"
+anyhow = "1"
+
+# EVM address validation (EIP-55 checksum + cryptographic correctness)
+alloy-primitives = "1.6"
+
+# Modern structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
-mockito = "1"
+mockito = "1.7"
 tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"

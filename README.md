@@ -1,584 +1,1066 @@
-<h1 align="center">rustplorer</h1>
-
-<img src="https://raw.githubusercontent.com/maxylev/rustplorer/refs/heads/main/banner.png" alt="rustplorer">
-
 <p align="center">
-  <strong>High-performance multi-chain deposit detector for EVM, Solana, and Bitcoin blockchains.</strong><br>
-  Monitors up to 1 million addresses using <strong>only public RPC endpoints</strong> — no API keys, no third-party services.
+  <img src="https://img.shields.io/badge/rust-1.95.0-orange?logo=rust" alt="Rust 1.95.0" />
+  <img src="https://img.shields.io/badge/edition-2024-blue" alt="Edition 2024" />
+  <img src="https://img.shields.io/badge/chains-EVM%20%7C%20Solana%20%7C%20Bitcoin-green" alt="Multi-chain" />
+  <img src="https://img.shields.io/badge/license-MIT%20%7C%20Apache--2.0-purple" alt="License" />
 </p>
 
-<p align="center">
-  <a href="https://crates.io/crates/rustplorer"><img src="https://img.shields.io/crates/v/rustplorer.svg" alt="crates.io"></a>
-  <img src="https://img.shields.io/crates/l/rustplorer.svg" alt="License">
-  <img src="https://img.shields.io/github/actions/workflow/status/maxylev/rustplorer/ci.yml?branch=main" alt="CI">
-</p>
+# rustplorer
+
+**High-performance multi-chain deposit detector daemon** — monitors Ethereum, Solana, Bitcoin, and all EVM-compatible chains using only public RPC endpoints. Zero API keys, zero paid services, zero dependencies on third-party indexing platforms.
+
+Rustplorer continuously watches blockchain blocks for incoming deposits to your tracked addresses and exposes results via a real-time HTTP API with a built-in dashboard UI.
 
 ---
 
 ## Features
 
-- **Multi-chain**: Ethereum, Base, Polygon, BSC, Arbitrum, and any EVM chain + Solana + **Bitcoin**
-- **Multi-token**: Native tokens (ETH, MATIC, SOL, BTC) + ERC-20 / SPL tokens
-- **No API keys**: Works with any public JSON-RPC endpoint
-- **Multi-RPC failover**: Exponential backoff retry across endpoints with configurable delays
-- **1M+ addresses**: Loads addresses into an in-memory `HashSet` for O(1) matching
-- **Human-readable output**: Converts raw hex/lamport/satoshi values to decimal strings (U256-safe via `BigUint`)
-- **Transaction hashes**: Every detected deposit includes the `tx_hash` for traceability
-- **Concurrent RPC**: Fetches blocks in parallel via `buffer_unordered` with configurable concurrency
-- **Web dashboard**: Real-time deposit ledger UI at `http://localhost:PORT` with dark/light theme
-- **Dual use**: CLI binary and Rust library crate
-- **Extensible**: Modular architecture with EVM, Solana, Bitcoin scanners — add any chain by implementing a scanner
-- **Optional block range**: Omit `start_block`/`end_block` to auto-detect from the node
-- **Daemon mode**: Run continuously with configurable polling interval (`--watch`)
-- **Hot-reloading**: Address file is re-read each interval — edit, add, or remove addresses at runtime
-- **HTTP API**: Manage target addresses and query deposits via REST endpoints (`--api-port`)
-- **CLI address management**: Add or remove addresses directly from the command line
-- **Docker & GHCR**: Pre-built image available at `ghcr.io/maxylev/rustplorer:latest`
+- **Multi-chain support** — EVM (Ethereum, Base, Polygon, Arbitrum, Optimism, BSC, and any `eip155:` chain), Solana, and Bitcoin
+- **Batched `eth_getLogs`** — one RPC call per block chunk for all ERC-20 tokens (not N+1 calls)
+- **MPSC channel aggregation** — non-blocking deposit collection via `tokio::sync::mpsc` (no `Arc<Mutex<Vec>>`)
+- **In-memory ring buffer** — O(1) `/deposits` API reads from a `VecDeque` (cap 100), no disk I/O on every poll
+- **Nested config** — `[chains.<name>.assets.<TICKER>]` structure with `caip2` on the chain, not on each asset
+- **`toml_edit` mutations** — CLI and API add/remove chains and assets while preserving comments in `Config.toml`
+- **EIP-55 address validation** — `alloy-primitives` validates and normalizes EVM addresses
+- **Lossless BTC precision** — `serde_json` `arbitrary_precision` + `rust_decimal` for exact satoshi math
+- **Structured logging** — `tracing` + `tracing-subscriber` with `RUST_LOG` env-filter
+- **Graceful shutdown** — `tokio::select!` with `ctrl_c()` signal handling
+- **Hot-reload config** — re-reads `Config.toml` each watch cycle; API/CLI changes take effect on next poll
+- **Localhost-only API** — binds to `127.0.0.1` by default for security
+- **Built-in dashboard** — dark/light theme, address management, chain/asset settings, custom confirm modal
+- **Docker-ready** — single `Dockerfile` with fat LTO release binary
 
-## Architecture
-
-```
-Blockchain RPC ──► Block Stream ──► Local HashSet Lookup ──► Deposit Match
-                                        (1M addresses)
-```
-
-Instead of querying "does address X have a deposit?" (pull), rustplorer downloads blocks and asks "does this block contain any of my addresses?" (push). All filtering happens locally.
-
-## Installation
-
-### From Docker (GHCR)
-
-```bash
-docker pull ghcr.io/maxylev/rustplorer:latest
-
-# Single run
-docker run --rm \
-  -v $(pwd)/Config.toml:/app/Config.toml \
-  -v $(pwd)/addresses.txt:/app/addresses.txt \
-  ghcr.io/maxylev/rustplorer:latest \
-  -c /app/Config.toml -a /app/addresses.txt
-
-# Daemon mode with API
-docker run -d --name rustplorer \
-  -v $(pwd)/Config.toml:/app/Config.toml \
-  -v $(pwd)/addresses.txt:/app/addresses.txt \
-  -p 3000:3000 \
-  ghcr.io/maxylev/rustplorer:latest \
-  -c /app/Config.toml -a /app/addresses.txt --watch --interval 30 --api-port 3000
-```
-
-### Build Docker locally
-
-```bash
-# Build the image (~3 min on first build, cached after)
-docker build -t rustplorer .
-
-# Single run
-docker run --rm \
-  -v $(pwd)/Config.toml:/app/Config.toml \
-  -v $(pwd)/addresses.txt:/app/addresses.txt \
-  rustplorer -c /app/Config.toml -a /app/addresses.txt
-
-# Daemon mode with API
-docker run -d --name rustplorer \
-  -v $(pwd)/Config.toml:/app/Config.toml \
-  -v $(pwd)/addresses.txt:/app/addresses.txt \
-  -p 3000:3000 \
-  rustplorer -c /app/Config.toml -a /app/addresses.txt --watch --interval 30 --api-port 3000
-```
-
-> **Note:** A `.dockerignore` excludes `target/` from the build context. The image uses a multi-stage build (Rust 1.85-slim → Debian Bookworm) and weighs ~30 MB compressed.
-
-### From crates.io
-
-```bash
-cargo install rustplorer
-```
-
-### From source
-
-```bash
-git clone https://github.com/maxylev/rustplorer.git
-cd rustplorer
-cargo install --path .
-```
-
-### As a library
-
-```toml
-[dependencies]
-rustplorer = "0.5.1"
-```
+---
 
 ## Quick Start
 
-### 1. Create a config file (`Config.toml`)
+```bash
+# Build
+cargo build --release
 
-Both `start_block` and `end_block` are optional. If omitted, the latest block is fetched from the node.
+# Create a config file (see Configuration below)
+cp Config.toml.example Config.toml
+
+# Create an addresses file
+echo "0x70997970c51812dc3a010c7d01b50e0d17dc79c8" > addresses.txt
+
+# Single scan
+./target/release/rustplorer --config Config.toml --addresses addresses.txt
+
+# Daemon mode with API + dashboard on port 3000
+./target/release/rustplorer --config Config.toml --addresses addresses.txt \
+  --watch --api-port 3000 --interval 60 --verbose
+```
+
+Open `http://localhost:3000/` in your browser to see the dashboard.
+
+---
+
+## Configuration
+
+Rustplorer uses a **nested TOML** structure where chains are named tables and assets are scoped under their parent chain. This eliminates the need for redundant `caip2` fields on every asset.
+
+### Config.toml
 
 ```toml
-[[chains]]
+# ==========================================
+# ETHEREUM
+# ==========================================
+[chains.ethereum]
 caip2 = "eip155:1"
+start_block = 19000000
+end_block = 19000500
 rpc = [
     "https://ethereum.publicnode.com",
     "https://eth.drpc.org",
     "https://1rpc.io/eth",
 ]
-start_block = 19000000
-end_block = 19000500
 
-[[chains]]
+  [chains.ethereum.assets.ETH_NATIVE]
+  contract = "native"
+  decimals = 18
+
+  [chains.ethereum.assets.USDC]
+  contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+  decimals = 6
+
+
+# ==========================================
+# BASE
+# ==========================================
+[chains.base]
 caip2 = "eip155:8453"
+start_block = 12000000
+end_block = 12000500
 rpc = [
     "https://base.publicnode.com",
     "https://base.drpc.org",
+    "https://mainnet.base.org",
 ]
-start_block = 12000000
-end_block = 12000500
 
-# Omit both start_block and end_block → scans last 1,000 blocks (EVM) / 500 slots (Solana) / 6 blocks (Bitcoin)
-# NOTE: Public Ethereum RPCs usually work. Polygon public RPCs often require API keys.
-# [[chains]]
+  [chains.base.assets.USDC]
+  contract = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  decimals = 6
+
+
+# ==========================================
+# POLYGON (Optional/Commented out)
+# ==========================================
+# Polygon public RPCs often require API keys. Commented out by default.
+# [chains.polygon]
 # caip2 = "eip155:137"
-# rpc = ["https://polygon-rpc.com"]
+# rpc = [
+#     "https://polygon-rpc.com",
+#     "https://rpc.ankr.com/polygon",
+# ]
 
-[[chains]]
+
+# ==========================================
+# SOLANA
+# ==========================================
+[chains.solana]
 caip2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-rpc = ["https://api.mainnet-beta.solana.com"]
-start_block = 250000000
-end_block = 250000100
-max_concurrent = 1
-rpc_delay_ms = 500
+rpc = [
+    "https://api.mainnet-beta.solana.com",
+]
 
-[[chains]]
+  # Grouped rate-limiting / performance options
+  [chains.solana.rpc_options]
+  max_concurrent = 1
+  delay_ms = 500
+
+  [chains.solana.assets.SOL_NATIVE]
+  contract = "native"
+  decimals = 9
+
+  [chains.solana.assets.USDC]
+  contract = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  decimals = 6
+
+
+# ==========================================
+# BITCOIN
+# ==========================================
+[chains.bitcoin]
 caip2 = "bip122:000000000019d6689c085ae165831e93"
-rpc = ["https://bitcoin-rpc.publicnode.com"]
+rpc = [
+    "https://bitcoin-rpc.publicnode.com",
+]
 
-[assets.ETH_NATIVE]
-network = "eip155:1"
-contract = "native"
-decimals = 18
-
-[assets.USDC_ETH]
-network = "eip155:1"
-contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
-decimals = 6
-
-[assets.USDC_BASE]
-network = "eip155:8453"
-contract = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-decimals = 6
-
-[assets.SOL_NATIVE]
-network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-contract = "native"
-decimals = 9
-
-[assets.USDC_SOL]
-network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-contract = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-decimals = 6
-
-[assets.BTC_NATIVE]
-network = "bip122:000000000019d6689c085ae165831e93"
-contract = "native"
-decimals = 8
+  [chains.bitcoin.assets.BTC_NATIVE]
+  contract = "native"
+  decimals = 8
 ```
 
-### 2. Create an addresses file (`addresses.txt`)
+### Config Fields
 
-One address per line — supports mixed EVM, Solana, and Bitcoin:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `chains.<name>.caip2` | string | yes | CAIP-2 chain identifier (e.g. `eip155:1`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `bip122:000000000019d6689c085ae165831e93`) |
+| `chains.<name>.rpc` | array | yes | List of RPC endpoint URLs (fallback order) |
+| `chains.<name>.start_block` | u64 | no | Override start block (default: `tip - lookback`) |
+| `chains.<name>.end_block` | u64 | no | Override end block (default: current tip). EVM-only. |
+| `chains.<name>.rpc_options` | table | no | Rate-limiting options (see below) |
+| `chains.<name>.assets.<TICKER>.contract` | string | yes | `"native"` for the chain's native token, or the ERC-20/SPL contract address |
+| `chains.<name>.assets.<TICKER>.decimals` | u32 | yes | Token decimals (e.g. 18 for ETH, 6 for USDC, 9 for SOL, 8 for BTC) |
+
+### RPC Options
+
+The `[chains.<name>.rpc_options]` sub-table controls concurrency and rate-limiting for a chain:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_concurrent` | usize | 1 (Solana), 3 (BTC), 5 (EVM) | Maximum concurrent RPC requests |
+| `delay_ms` | u64 | 200 (Solana), 100 (BTC/EVM) | Delay between request batches in milliseconds |
+
+Solana benefits from `max_concurrent = 1` and `delay_ms = 500` to avoid 429 errors from public endpoints.
+
+### CAIP-2 Identifiers
+
+| Chain | CAIP-2 |
+|-------|--------|
+| Ethereum Mainnet | `eip155:1` |
+| Base | `eip155:8453` |
+| Polygon | `eip155:137` |
+| Arbitrum One | `eip155:42161` |
+| Optimism | `eip155:10` |
+| BSC | `eip155:56` |
+| Solana Mainnet | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` |
+| Bitcoin Mainnet | `bip122:000000000019d6689c085ae165831e93` |
+| Anvil (local) | `eip155:31337` |
+
+---
+
+## CLI Usage
 
 ```
-0x71C7656EC7ab88b098defB751B7401B5f6d8976F
-0x8Ba1f109551bD432803012645Ac136ddd64DBA72
-AMYmXa54xZuS7rjeSX7E4YwNVKpNbhFHK9gP7jLCN3A
-bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq
+rustplorer [OPTIONS]
+
+Options:
+  -c, --config <PATH>           Config file path [default: Config.toml]
+  -a, --addresses <PATH>        Text file with target addresses (one per line)
+  -f, --format <FORMAT>         Output format: json, csv [default: json]
+  -o, --output <PATH>           Save output to file (stdout if omitted)
+      --network <CAIP2>         Override network to scan (e.g. eip155:1)
+      --start-block <BLOCK>     Override start block
+      --end-block <BLOCK>       Override end block
+      --rpc <URLS>              Override RPC endpoints (comma-separated)
+  -v, --verbose                 Show verbose progress output
+      --watch                   Run continuously in daemon mode
+      --interval <SECONDS>      Polling interval in watch mode [default: 60]
+      --api-port <PORT>         Start HTTP API on port
+      --host <HOST>             Bind the API to this host [default: 127.0.0.1]
+      --add-address <ADDR>      Add address(es) to file and exit (repeatable)
+      --remove-address <ADDR>   Remove address(es) from file and exit (repeatable)
+      --add-chain <SPEC>        Add chain: NAME,CAIP2,RPC_URL1,RPC_URL2
+      --remove-chain <NAME>     Remove chain from Config.toml by name
+      --add-asset <SPEC>        Add asset: CHAIN_NAME,ASSET_NAME,CONTRACT,DECIMALS
+      --remove-asset <SPEC>     Remove asset: CHAIN_NAME,ASSET_NAME
+  -h, --help                    Print help
+  -V, --version                 Print version
 ```
 
-### 3. Run
+### Examples
 
 ```bash
-# Output JSON to stdout
-rustplorer --addresses addresses.txt
+# Single scan of Ethereum mainnet, output JSON to stdout
+rustplorer -c Config.toml -a addresses.txt --network eip155:1
 
-# Save as JSON file
-rustplorer -a addresses.txt -o deposits.json
+# Save results as CSV
+rustplorer -c Config.toml -a addresses.txt -f csv -o deposits.csv
 
-# Save as CSV
-rustplorer -a addresses.txt --format csv -o deposits.csv
+# Daemon mode: poll every 30s, serve API on port 8080
+rustplorer -c Config.toml -a addresses.txt --watch --interval 30 --api-port 8080 -v
 
-# Override block range for a specific network
-rustplorer -a addresses.txt --network eip155:137 --start-block 55000000 --end-block 55001000
+# Add a new chain via CLI (preserves comments in Config.toml)
+rustplorer --add-chain "arbitrum,eip155:42161,https://arb1.arbitrum.io/rpc,https://arbitrum.drpc.org"
 
-# Override RPC endpoints
-rustplorer -a addresses.txt --network eip155:1 --rpc "https://rpc.ankr.com/eth,https://eth.llamarpc.com"
+# Remove a chain
+rustplorer --remove-chain polygon
 
-# Verbose mode
-rustplorer -a addresses.txt --verbose -o results.json
+# Add an ERC-20 token to an existing chain
+rustplorer --add-asset "ethereum,DAI,0x6B175474E89094C44Da98b954EedeAC495271d0F,18"
+
+# Add a tracked address
+rustplorer -a addresses.txt --add-address "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
 ```
 
-## Daemon Mode (Watch)
-
-Run rustplorer continuously with `--watch`. It polls chains at a configurable interval, starting each scan where the last one left off (no missed blocks, no overlaps).
-
-```bash
-# Poll every 30 seconds
-rustplorer -a addresses.txt --watch --interval 30
-
-# Poll every minute, output to JSON Lines file
-rustplorer -a addresses.txt --watch --interval 60 -o deposits.jsonl
-
-# Daemon + HTTP API for remote address management
-rustplorer -a addresses.txt --watch --interval 30 --api-port 3000
-```
-
-**Hot-reloading**: The addresses file is re-read at the start of every polling cycle. Add, remove, or edit addresses in the file and changes take effect automatically — no restart required.
-
-**Output format**: In watch mode, results are appended rather than overwritten:
-- **JSON** → JSON Lines (`.jsonl`), one object per line
-- **CSV** → Standard CSV with headers on first write
+---
 
 ## HTTP API
 
-Start an HTTP server to manage target addresses dynamically and visualize deposits:
-
-```bash
-rustplorer -a addresses.txt --watch --api-port 3000 -o deposits.jsonl
-```
-
-Open `http://localhost:3000` in your browser for the real-time deposit dashboard with dark/light theme, address management, and live deposit ledger.
+When started with `--api-port`, rustplorer serves a REST API bound to `127.0.0.1` by default.
 
 ### Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/` | Web UI dashboard for managing addresses and viewing deposits |
-| `GET` | `/addresses` | List all tracked addresses |
-| `POST` | `/addresses` | Add a new address |
-| `DELETE` | `/addresses` | Remove an address |
-| `GET` | `/deposits` | List all detected deposits (JSON Lines from output file) |
+| `GET` | `/` | Built-in dashboard (HTML) |
+| `GET` | `/v1/deposits` | Recent deposits from in-memory ring buffer (cap 100) |
+| `GET` | `/v1/addresses` | List tracked addresses |
+| `POST` | `/v1/addresses` | Add addresses: `{"address": "0x..."}` or `{"addresses": ["0x1", "0x2"]}` |
+| `DELETE` | `/v1/addresses/:addr` | Remove a tracked address |
+| `GET` | `/v1/config` | Current configuration (nested structure) |
+| `POST` | `/v1/chains` | Add a chain: `{"name": "arbitrum", "caip2": "eip155:42161", "rpc": ["https://..."]}` |
+| `DELETE` | `/v1/chains/:name` | Remove a chain by name |
+| `POST` | `/v1/assets` | Add an asset: `{"chain": "ethereum", "name": "DAI", "contract": "0x6B17...", "decimals": 18}` |
+| `DELETE` | `/v1/assets/:chain/:asset` | Remove an asset |
 
-### Examples
+### Output Examples
 
-```bash
-# List addresses
-curl http://localhost:3000/addresses
+All JSON responses follow the JSON:API specification: every response is a top-level JSON object (never a bare array) with `data` and `meta` keys for success, or an `errors` array for failures. This allows future extensibility (pagination, hypermedia links) without breaking changes.
 
-# Add a single address
-curl -X POST http://localhost:3000/addresses \
-  -H "Content-Type: application/json" \
-  -d '{"address": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"}'
+#### `GET /v1/deposits` — Recent Deposits
 
-# Add multiple addresses as array
-curl -X POST http://localhost:3000/addresses \
-  -H "Content-Type: application/json" \
-  -d '{"addresses": ["0xAAA...", "0xBBB...", "SolanaAddr..."]}'
-
-# Remove a single address
-curl -X DELETE http://localhost:3000/addresses \
-  -H "Content-Type: application/json" \
-  -d '{"address": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"}'
-
-# Remove multiple addresses as array
-curl -X DELETE http://localhost:3000/addresses \
-  -H "Content-Type: application/json" \
-  -d '{"addresses": ["0xAAA...", "0xBBB..."]}'
-
-# View detected deposits
-curl http://localhost:3000/deposits
-```
-
-> **Note:** The `/deposits` endpoint and web dashboard require an output file (`-o deposits.jsonl`). The daemon writes each new deposit as a JSON Line, which the dashboard polls every 5 seconds.
-
-## CLI Address Management
-
-Directly add or remove addresses from the command line. Flags can be repeated for batches:
+Returns up to 100 most recent deposits from the in-memory ring buffer, newest first.
 
 ```bash
-# Add one address
-rustplorer -a addresses.txt --add-address "0xNewAddress123..."
-
-# Add many at once (repeatable)
-rustplorer -a addresses.txt \
-  --add-address "0xAAA..." \
-  --add-address "0xBBB..." \
-  --add-address "SolanaAddr..."
-
-# Remove many at once
-rustplorer -a addresses.txt \
-  --remove-address "0xAAA..." \
-  --remove-address "SolanaAddr..."
+curl http://127.0.0.1:3000/v1/deposits
 ```
-
-These commands operate on the file directly and exit immediately. Changes take effect on the next watch cycle.
-
-## CLI Reference
-
-```
-rustplorer [OPTIONS] --addresses <FILE>
-
-Options:
-  -a, --addresses <FILE>     Text file with target addresses (one per line)
-  -c, --config <FILE>        Config file [default: Config.toml]
-  -f, --format <FORMAT>      Output format: json, csv [default: json]
-  -o, --output <FILE>        Save to file (stdout if omitted)
-      --network <CAIP2>      Filter to a single network (e.g. eip155:1)
-      --start-block <N>      Override start block (node default if omitted)
-      --end-block <N>        Override end block (node default if omitted)
-      --rpc <URLS>           Override RPC endpoints (comma-separated)
-      --verbose              Show progress output
-      --watch                Run continuously in daemon mode
-      --interval <SECS>      Polling interval in seconds (watch mode) [default: 60]
-      --api-port <PORT>      Start HTTP API on port for dynamic address management
-      --add-address <ADDR>   Add address(es) to file and exit (repeatable)
-      --remove-address <ADDR> Remove address(es) from file and exit (repeatable)
-  -h, --help                 Show help
-  -V, --version              Show version
-```
-
-## Output Format
-
-### JSON
 
 ```json
-[
-  {
-    "chain": "eip155:8453",
-    "token": "USDC_BASE",
-    "from_address": "0x20f3a60a7ff2411e7ca1bf8ef9a0994336021f1a",
-    "to_address": "0x71c7656ec7ab88b098defb751b7401b5f6d8976f",
-    "amount_raw": "0x0000000000000000000000000000000000000000000000000000000002faf080",
-    "amount_clean": "50",
-    "block_number": 12000542,
-    "tx_hash": "0xabc123..."
-  },
-  {
-    "chain": "eip155:1",
-    "token": "Native",
-    "from_address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-    "to_address": "0x01bf3a00a11a417eef11a8aa0aa341bd7aa010fa",
-    "amount_raw": "0xde0b6b3a7640000",
-    "amount_clean": "1",
-    "block_number": 19000210,
-    "tx_hash": "0xdef456..."
-  },
-  {
-    "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-    "token": "Native",
-    "from_address": "E45GKD1qqErzCaRKnLbZppPpDPeiLJVz3e44dNmELiqC",
-    "to_address": "3zCGKxMK3JHNUMtHbticPoDvoRbUgzY65ayoHMWZwZE2",
-    "amount_raw": "2500000000",
-    "amount_clean": "2.5",
-    "block_number": 263,
-    "tx_hash": "5Gx..."
-  },
-  {
-    "chain": "bip122:000000000019d6689c085ae165831e93",
-    "token": "Native",
-    "from_address": "bc1qsenderaddress0987654321",
-    "to_address": "bc1qtargetaddress1234567890",
-    "amount_raw": "150000000",
-    "amount_clean": "1.5",
-    "block_number": 830000,
-    "tx_hash": "a1b2c3..."
+{
+  "data": [
+    {
+      "chain": "ethereum",
+      "asset": "USDC",
+      "from_address": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+      "to_address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "amount_raw": "50000000",
+      "amount_clean": "50",
+      "block_number": 19000123,
+      "tx_hash": "0xabc123def456789012345678901234567890abcdef1234567890abcdef123456"
+    },
+    {
+      "chain": "solana",
+      "asset": "SOL_NATIVE",
+      "from_address": "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV",
+      "to_address": "DRpbCBMxVnDK7maPMoGQfFiB4P4cByAHpLMkP1g8vAJw",
+      "amount_raw": "1500000000",
+      "amount_clean": "1.5",
+      "block_number": 245678901,
+      "tx_hash": "5UfDuX7EWsBzZcJvQeYq5tBKDvaR5LfrRHFFqWf6n3mQvQkBgF5rF1CCvY3qL1vz6HKqSLk3wRwYkY6vBvs3XVh"
+    },
+    {
+      "chain": "bitcoin",
+      "asset": "BTC_NATIVE",
+      "from_address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+      "to_address": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+      "amount_raw": "12345678",
+      "amount_clean": "0.12345678",
+      "block_number": 831001,
+      "tx_hash": "a1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d"
+    },
+    {
+      "chain": "ethereum",
+      "asset": "ETH_NATIVE",
+      "from_address": "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
+      "to_address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "amount_raw": "2500000000000000000",
+      "amount_clean": "2.5",
+      "block_number": 19000120,
+      "tx_hash": "0xdef789abc012345678901234567890abcdef123456789012345678901234abcd"
+    }
+  ],
+  "meta": {
+    "total": 4
   }
-]
-```
-
-### CSV
-
-```csv
-chain,token,from_address,to_address,amount_raw,amount_clean,block_number,tx_hash
-eip155:8453,USDC_BASE,0x20f3a60a...,0x71c7656e...,0x...02faf080,50,12000542,0xabc123...
-eip155:1,Native,0xd8da6bf2...,0x01bf3a00...,0x0de0b6b3a7640000,1,19000210,0xdef456...
-solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp,Native,E45GKD1q...,3zCGKxMK...,2500000000,2.5,263,5Gx...
-bip122:000000000019d6689c085ae165831e93,Native,bc1qsender...,bc1qtarget...,150000000,1.5,830000,a1b2c3...
-```
-
-## Programmatic Usage
-
-```rust
-use rustplorer::{run_indexer, ChainConfig, AssetConfig, DepositResult, IndexerResult};
-use hashbrown::HashSet;
-use std::collections::HashMap;
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() {
-    let mut targets = HashSet::new();
-    targets.insert("0x71c7656ec7ab88b098defb751b7401b5f6d8976f".to_string());
-
-    let chains = vec![ChainConfig {
-        caip2: "eip155:1".to_string(),
-        rpc: vec!["https://eth.llamarpc.com".to_string()],
-        start_block: Some(19000000),
-        end_block: Some(19000100),
-    }];
-
-    let mut assets = HashMap::new();
-    assets.insert("ETH".to_string(), AssetConfig {
-        network: "eip155:1".to_string(),
-        contract: "native".to_string(),
-        decimals: 18,
-    });
-
-    let result: IndexerResult = run_indexer(
-        chains,
-        assets,
-        Arc::new(targets),
-    )
-    .await
-    .unwrap();
-
-    for d in &result.deposits {
-        println!("{} {} {} -> {} ({})",
-            d.token, d.amount_clean, d.from_address, d.to_address, d.chain);
-    }
-
-    // Track last scanned blocks for daemon implementations
-    for (chain, block) in &result.latest_blocks {
-        println!("[{}] last scanned block: {}", chain, block);
-    }
 }
 ```
 
-## How It Works
+#### `GET /v1/addresses` — List Tracked Addresses
 
-### EVM Chains
+Returns all currently tracked addresses, grouped by chain type where applicable.
 
-| Token Type | Method | Strategy |
-|---|---|---|
-| ERC-20 / ERC-721 | `eth_getLogs` | Filters Transfer events by contract address, matches `topic[2]` (to) against local address set |
-| Native (ETH, MATIC) | `eth_getBlockByNumber` | Downloads full block with transactions, checks `tx.to` and `tx.value > 0` |
+```bash
+curl http://127.0.0.1:3000/v1/addresses
+```
 
-Block ranges are chunked into 200-block intervals to respect public RPC limits.
+```json
+{
+  "data": [
+    "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+    "DRpbCBMxVnDK7maPMoGQfFiB4P4cByAHpLMkP1g8vAJw",
+    "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+  ],
+  "meta": {
+    "total": 4
+  }
+}
+```
 
-### Solana
+#### `POST /v1/addresses` — Add Addresses
 
-| Token Type | Method | Strategy |
-|---|---|---|
-| Native SOL | `getBlock` | Compares `preBalances` vs `postBalances` per account |
-| SPL Tokens | `getBlock` | Checks `postTokenBalances` for matching owners and mints |
+Add one or more addresses to the tracker. Supports both single and batch modes. Returns `201 Created` on success.
 
-Each slot is fetched individually via `getBlock`.
+**Single address:**
 
-### Bitcoin (BTC)
+```bash
+curl -X POST http://127.0.0.1:3000/v1/addresses \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"}'
+```
 
-| Token Type | Method | Strategy |
-|---|---|---|
-| Native BTC | `getblock` (verbosity 3) | Uses Bitcoin Core v24.0+ `prevout` field inside `vin` to determine sender in a single RPC call. Matches `vout.scriptPubKey.address` against local targets. Values are safely converted from float to Satoshi integers using `rust_decimal`. |
+```json
+{
+  "data": {
+    "added": 1
+  },
+  "meta": {
+    "total": 5
+  }
+}
+```
 
-### Multi-RPC Failover
+**Batch addresses:**
 
-If an RPC endpoint returns a 429, 5xx, or a JSON-RPC error, rustplorer automatically tries the next endpoint in your `rpc` array. All endpoints are exhausted before failing.
+```bash
+curl -X POST http://127.0.0.1:3000/v1/addresses \
+  -H "Content-Type: application/json" \
+  -d '{"addresses": ["0x70997970c51812dc3a010c7d01b50e0d17dc79c8", "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"]}'
+```
 
-### Block Range Auto-Detection
+```json
+{
+  "data": {
+    "added": 2
+  },
+  "meta": {
+    "total": 6
+  }
+}
+```
 
-When `start_block` or `end_block` is omitted in the config:
+**Error — invalid request (400 Bad Request):**
 
-- **EVM**: Calls `eth_blockNumber` to get the latest block
-- **Solana**: Calls `getSlot` to get the latest slot
-- **Bitcoin**: Calls `getblockcount` to get the latest block
+```json
+{
+  "errors": [
+    {
+      "status": "400",
+      "title": "Bad Request",
+      "detail": "no addresses provided"
+    }
+  ]
+}
+```
 
-Default lookback when `start_block` is not set:
+#### `DELETE /v1/addresses/:addr` — Remove an Address
 
-| Chain type | Default lookback | Time coverage (approx.) |
-|---|---|---|
-| EVM (Ethereum, Base, etc.) | 1,000 blocks | ~20 min (ETH), ~3 min (Polygon), ~16 min (Base) |
-| Solana | 500 slots | ~3-4 min |
-| Bitcoin | 6 blocks | ~1 hour |
+Removes a tracked address by its exact string.
 
-| `start_block` | `end_block` | Behavior |
-|---|---|---|
-| set | set | Scan `start_block` → `end_block` |
-| set | omitted | Scan `start_block` → node tip |
-| omitted | set | Scan `(end_block - lookback)` → `end_block` |
-| omitted | omitted | Scan `(node tip - lookback)` → `node tip` |
+```bash
+curl -X DELETE http://127.0.0.1:3000/v1/addresses/0x70997970c51812dc3a010c7d01b50e0d17dc79c8
+```
 
-**Public RPC limits to be aware of:**
-- `eth_getLogs`: 500-2,000 blocks per request (rustplorer chunks at 200)
-- `getBlock` (Solana): ~100 requests per 10 seconds
-- `getblock` (Bitcoin): requires verbosity 3 support (Bitcoin Core v24.0.0+)
-- Rate limits: typically 5-10 req/sec on free endpoints
+```json
+{
+  "data": {
+    "removed": 1
+  },
+  "meta": {
+    "total": 5
+  }
+}
+```
 
-### Daemon Mode (Watch)
+#### `GET /v1/config` — Current Configuration
 
-In daemon mode (`--watch`), rustplorer:
+Returns the full runtime configuration in the same nested structure as `Config.toml`.
 
-1. Runs a full scan cycle
-2. Records the highest block scanned per chain
-3. Sleeps for `--interval` seconds
-4. Re-reads the addresses file from disk (hot-reload)
-5. Starts the next scan at `last_block + 1` for each chain
-6. Repeats
+```bash
+curl http://127.0.0.1:3000/v1/config
+```
 
-This guarantees contiguous coverage — no missed blocks and no overlapping scans.
+```json
+{
+  "data": {
+    "chains": {
+      "ethereum": {
+        "caip2": "eip155:1",
+        "start_block": 19000000,
+        "end_block": 19000500,
+        "rpc": [
+          "https://ethereum.publicnode.com",
+          "https://eth.drpc.org",
+          "https://1rpc.io/eth"
+        ],
+        "assets": {
+          "ETH_NATIVE": {
+            "contract": "native",
+            "decimals": 18
+          },
+          "USDC": {
+            "contract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "decimals": 6
+          }
+        }
+      },
+      "solana": {
+        "caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "rpc": [
+          "https://api.mainnet-beta.solana.com"
+        ],
+        "rpc_options": {
+          "max_concurrent": 1,
+          "delay_ms": 500
+        },
+        "assets": {
+          "SOL_NATIVE": {
+            "contract": "native",
+            "decimals": 9
+          },
+          "USDC": {
+            "contract": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "decimals": 6
+          }
+        }
+      },
+      "bitcoin": {
+        "caip2": "bip122:000000000019d6689c085ae165831e93",
+        "rpc": [
+          "https://bitcoin-rpc.publicnode.com"
+        ],
+        "assets": {
+          "BTC_NATIVE": {
+            "contract": "native",
+            "decimals": 8
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### `POST /v1/chains` — Add a Chain
+
+Adds a new chain to the configuration. The chain is persisted to `Config.toml` via `toml_edit` and hot-reloaded on the next watch cycle. Returns `201 Created` on success.
+
+```bash
+curl -X POST http://127.0.0.1:3000/v1/chains \
+  -H "Content-Type: application/json" \
+  -d '{"name": "arbitrum", "caip2": "eip155:42161", "rpc": ["https://arb1.arbitrum.io/rpc", "https://arbitrum.drpc.org"]}'
+```
+
+```json
+{
+  "data": {
+    "name": "arbitrum",
+    "caip2": "eip155:42161",
+    "rpc": [
+      "https://arb1.arbitrum.io/rpc",
+      "https://arbitrum.drpc.org"
+    ]
+  }
+}
+```
+
+**With optional fields (start_block, rpc_options):**
+
+```bash
+curl -X POST http://127.0.0.1:3000/v1/chains \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "polygon",
+    "caip2": "eip155:137",
+    "rpc": ["https://polygon-rpc.com", "https://rpc.ankr.com/polygon"],
+    "start_block": 50000000,
+    "rpc_options": {"max_concurrent": 3, "delay_ms": 100}
+  }'
+```
+
+```json
+{
+  "data": {
+    "name": "polygon",
+    "caip2": "eip155:137",
+    "rpc": [
+      "https://polygon-rpc.com",
+      "https://rpc.ankr.com/polygon"
+    ]
+  }
+}
+```
+
+**Error — invalid CAIP-2 format (400 Bad Request):**
+
+```json
+{
+  "errors": [
+    {
+      "status": "400",
+      "title": "Bad Request",
+      "detail": "invalid CAIP-2 format: invalid_namespace (expected namespace:reference)"
+    }
+  ]
+}
+```
+
+**Error — chain already exists (409 Conflict):**
+
+```json
+{
+  "errors": [
+    {
+      "status": "409",
+      "title": "Conflict",
+      "detail": "chain already exists: ethereum"
+    }
+  ]
+}
+```
+
+#### `DELETE /v1/chains/:name` — Remove a Chain
+
+Removes a chain and all its assets from the configuration.
+
+```bash
+curl -X DELETE http://127.0.0.1:3000/v1/chains/polygon
+```
+
+```json
+{
+  "data": {
+    "removed": "polygon"
+  },
+  "meta": {
+    "remaining_chains": ["ethereum", "solana", "bitcoin"]
+  }
+}
+```
+
+**Error — chain not found (404 Not Found):**
+
+```json
+{
+  "errors": [
+    {
+      "status": "404",
+      "title": "Not Found",
+      "detail": "chain not found: avalanche"
+    }
+  ]
+}
+```
+
+#### `POST /v1/assets` — Add an Asset
+
+Adds a token asset to an existing chain. The `chain` must match a chain already present in the configuration. Returns `201 Created` on success.
+
+**Add an ERC-20 token:**
+
+```bash
+curl -X POST http://127.0.0.1:3000/v1/assets \
+  -H "Content-Type: application/json" \
+  -d '{"chain": "ethereum", "name": "DAI", "contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "decimals": 18}'
+```
+
+```json
+{
+  "data": {
+    "chain": "ethereum",
+    "name": "DAI",
+    "contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+    "decimals": 18
+  }
+}
+```
+
+**Add a native token:**
+
+```bash
+curl -X POST http://127.0.0.1:3000/v1/assets \
+  -H "Content-Type: application/json" \
+  -d '{"chain": "base", "name": "ETH_NATIVE", "contract": "native", "decimals": 18}'
+```
+
+```json
+{
+  "data": {
+    "chain": "base",
+    "name": "ETH_NATIVE",
+    "contract": "native",
+    "decimals": 18
+  }
+}
+```
+
+**Error — chain not found (404 Not Found):**
+
+```json
+{
+  "errors": [
+    {
+      "status": "404",
+      "title": "Not Found",
+      "detail": "chain not found: avalanche"
+    }
+  ]
+}
+```
+
+**Error — asset already exists (409 Conflict):**
+
+```json
+{
+  "errors": [
+    {
+      "status": "409",
+      "title": "Conflict",
+      "detail": "asset already exists on chain ethereum: USDC"
+    }
+  ]
+}
+```
+
+#### `DELETE /v1/assets/:chain/:asset` — Remove an Asset
+
+Removes a token asset from a chain.
+
+```bash
+curl -X DELETE http://127.0.0.1:3000/v1/assets/ethereum/DAI
+```
+
+```json
+{
+  "data": {
+    "removed": {
+      "chain": "ethereum",
+      "name": "DAI"
+    }
+  },
+  "meta": {
+    "remaining_assets_on_chain": ["ETH_NATIVE", "USDC"]
+  }
+}
+```
+
+**Error — chain not found (404 Not Found):**
+
+```json
+{
+  "errors": [
+    {
+      "status": "404",
+      "title": "Not Found",
+      "detail": "chain not found: avalanche"
+    }
+  ]
+}
+```
+
+**Error — asset not found (404 Not Found):**
+
+```json
+{
+  "errors": [
+    {
+      "status": "404",
+      "title": "Not Found",
+      "detail": "asset not found on chain ethereum: UNI"
+    }
+  ]
+}
+```
+
+#### `GET /` — Dashboard
+
+Returns the built-in HTML dashboard. Not a JSON endpoint — serves a complete single-page application.
+
+```bash
+curl http://127.0.0.1:3000/
+```
+
+```
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <!-- Full dashboard SPA -->
+</html>
+```
+
+All config mutations use `toml_edit` internally, so comments and formatting in `Config.toml` are preserved across API and CLI edits. Changes are hot-reloaded on the next watch cycle.
+
+---
+
+## Dashboard
+
+The built-in dashboard at `http://localhost:3000/` provides a real-time UI for monitoring deposits, managing addresses, and configuring chains and assets.
+
+### Features
+
+- **Dark/light theme** with toggle (persisted in `localStorage`)
+- **Address sidebar** — view and manage tracked addresses with one-click add/delete
+- **Deposit feed** — live-updating deposit cards with chain icons, token amounts, and truncated addresses
+- **Settings modal** — tabbed interface for managing chains and assets
+- **Custom confirm modal** — no `window.confirm()` dialogs; clean, styled confirmation
+- **Responsive** — mobile-friendly with tab-based navigation
+- **Toast notifications** — success/error/info feedback for all actions
+- **Status bar** — connection status, last poll time, chain count
+
+### Chain Icons
+
+The dashboard automatically maps chain names and CAIP-2 identifiers to icons and colors:
+
+| Chain | Icon | Color |
+|-------|------|-------|
+| Ethereum | ETH | Indigo |
+| Base | BASE | Blue |
+| Polygon | POLY | Purple |
+| Arbitrum | ARB | Cyan |
+| Optimism | OP | Red |
+| BSC | BSC | Amber |
+| Solana | SOL | Green |
+| Bitcoin | BTC | Amber |
+
+---
+
+## Architecture
+
+### Data Flow
+
+```
+Config.toml                    addresses.txt
+     │                              │
+     │  toml_edit::de::from_str()   │  load_addresses()
+     ▼                              ▼
+AppConfig                       HashSet<String>
+(chains: HashMap)               (validated EVM addrs)
+     │                              │
+     └──────────┬───────────────────┘
+                │
+                ▼
+         run_indexer()
+                │
+    ┌───────────┼───────────┐
+    │           │           │
+    ▼           ▼           ▼
+EvmScanner  SolScanner  BtcScanner
+    │           │           │
+    │  tx.send(DepositResult)
+    │           │           │
+    └───────────┼───────────┘
+                │
+      mpsc::channel(50_000)
+                │
+                ▼
+         tokio::select! {
+           recv  => deposits.push(d)
+           ctrl_c => graceful shutdown
+         }
+                │
+                ▼
+        Vec<DepositResult>
+           ┌────┴────┐
+           │         │
+     stdout/file   VecDeque (cap 100)
+                   recent_deposits
+                        │
+                  GET /v1/deposits (O(1))
+```
+
+### DepositResult
+
+Every detected deposit produces a `DepositResult`:
+
+```rust
+pub struct DepositResult {
+    pub chain: String,         // Chain name from config (e.g. "ethereum")
+    pub asset: String,         // Asset ticker (e.g. "USDC", "Native")
+    pub from_address: String,  // Sender address
+    pub to_address: String,    // Recipient (matched target)
+    pub amount_raw: String,    // Raw amount (wei, lamports, sats)
+    pub amount_clean: String,  // Human-readable (e.g. "50", "1.5")
+    pub block_number: u64,     // Block/slot height
+    pub tx_hash: String,       // Transaction hash
+}
+```
+
+### RPC Error Handling
+
+The `execute_rpc` function in `src/rpc.rs` implements exponential backoff retry across all configured RPC endpoints:
+
+1. Try each URL in order for the current round
+2. On 429 (rate limit) or 5xx: move to the next URL
+3. On JSON-RPC error: log with `tracing::warn!` and try next URL
+4. After exhausting all URLs: wait `500ms * 2^round` (capped at 10s)
+5. Retry up to 3 rounds total
+6. If all rounds fail: return `Err` — never silently default to 0
+
+### Address Validation
+
+EVM addresses (starting with `0x`/`0X`) are validated using `alloy_primitives::Address` to ensure cryptographic correctness. Invalid addresses are skipped with a `tracing::warn!` message. Valid addresses are stored in lowercase for consistent matching.
+
+Solana and Bitcoin addresses are stored as-is since they have different encoding schemes (Base58 for Solana, Bech32/Base58 for Bitcoin).
+
+### BTC Precision
+
+Bitcoin amounts from the RPC come as JSON numbers (e.g. `0.12345678`). With `serde_json`'s `arbitrary_precision` feature enabled, the exact string representation is preserved — no IEEE-754 floating-point intermediate. The value is then parsed with `rust_decimal::Decimal::from_str()` and multiplied by `100_000_000` to get exact satoshis. This prevents precision loss for high-value transactions.
+
+---
+
+## Building from Source
+
+### Prerequisites
+
+- **Rust 1.95.0+** (edition 2024)
+
+```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup default stable
+rustc --version  # ensure 1.95.0+
+```
+
+### Build
+
+```bash
+git clone https://github.com/maxylev/rustplorer.git
+cd rustplorer
+cargo build --release
+```
+
+The optimized binary is at `./target/release/rustplorer`.
+
+### Release Profile
+
+The `Cargo.toml` includes an optimized release profile:
+
+```toml
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+```
+
+---
+
+## Docker
+
+### Build Image
+
+```bash
+docker build -t rustplorer .
+```
+
+### Run
+
+```bash
+docker run -d \
+  --name rustplorer \
+  -p 3000:3000 \
+  -v $(pwd)/Config.toml:/app/Config.toml \
+  -v $(pwd)/addresses.txt:/app/addresses.txt \
+  rustplorer \
+  --config /app/Config.toml \
+  --addresses /app/addresses.txt \
+  --watch \
+  --api-port 3000 \
+  --interval 60 \
+  -v
+```
+
+### Docker Compose
+
+```yaml
+version: "3.8"
+services:
+  rustplorer:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Config.toml:/app/Config.toml
+      - ./addresses.txt:/app/addresses.txt
+    command: >
+      --config /app/Config.toml
+      --addresses /app/addresses.txt
+      --watch
+      --api-port 3000
+      --interval 60
+      -v
+    restart: unless-stopped
+```
+
+---
 
 ## Testing
 
-### Unit tests (mock RPC servers)
+### Unit Tests
 
 ```bash
-cargo test
+# Run all unit and mock tests
+cargo test --all-targets
+
+# Verbose output with tracing
+RUST_LOG=debug cargo test --all-targets -- --nocapture
+
+# Specific module
+cargo test --lib format
 ```
 
-### E2E tests (requires anvil + solana-test-validator + bitcoind)
+Unit tests use `mockito` 1.7 for mock HTTP servers, covering ERC-20 detection, native deposit detection, batched ERC-20, RPC fallback, error propagation, Solana/BTC scanning, MPSC channel aggregation, config loading, and address validation.
+
+### E2E Tests
+
+See [`e2e.md`](e2e.md) for comprehensive end-to-end test scenarios covering all chains with local nodes (anvil, solana-test-validator, bitcoind in regtest mode).
+
+---
+
+## Dependencies
+
+| Crate | Version | Purpose |
+|-------|---------|---------|
+| tokio | 1.52 | Async runtime (full features) |
+| reqwest | 0.13 | HTTP client for JSON-RPC |
+| axum | 0.8 | HTTP API server |
+| serde | 1 | Serialization/deserialization |
+| serde_json | 1 (arbitrary_precision) | Lossless JSON number parsing |
+| toml_edit | 0.25 (serde) | Comment-preserving config mutation |
+| futures | 0.3 | Stream utilities for concurrent RPC |
+| hashbrown | 0.17 | High-performance HashSet for addresses |
+| clap | 4 (derive) | CLI argument parsing |
+| alloy-primitives | 1.6 | EVM address validation & EIP-55 |
+| rust_decimal | 1.42 | Lossless BTC satoshi parsing |
+| num-bigint | 0.4 | Arbitrary-precision integer for formatting |
+| csv | 1 | CSV output format |
+| hex | 0.4 | Hex encoding/decoding |
+| tracing | 0.1 | Structured logging |
+| tracing-subscriber | 0.3 (env-filter) | Log filtering via `RUST_LOG` |
+| anyhow | 1 | Error handling |
+
+### Dev Dependencies
+
+| Crate | Version | Purpose |
+|-------|---------|---------|
+| mockito | 1.7 | Mock HTTP server for unit tests |
+| tempfile | 3 | Temporary file creation in tests |
+
+---
+
+## Project Structure
+
+```
+rustplorer/
+├── Cargo.toml              # Package manifest with latest deps
+├── Config.toml.example     # Example configuration (nested format)
+├── Dockerfile              # Multi-stage build (rust:1.95.0-slim)
+├── README.md               # This file
+├── e2e.md                  # Comprehensive E2E testing document
+├── index.html              # Built-in dashboard UI
+└── src/
+    ├── main.rs             # Entry point, CLI, API server, daemon loop
+    ├── lib.rs              # Config types, address loading, run_indexer()
+    ├── evm.rs              # EVM scanner (batched eth_getLogs, native + ERC-20)
+    ├── solana.rs           # Solana scanner (native + SPL tokens)
+    ├── btc.rs              # Bitcoin scanner (native, lossless precision)
+    ├── rpc.rs              # JSON-RPC executor with backoff retry
+    └── format.rs           # Raw-to-human amount formatting (BigUint)
+```
+
+---
+
+## Configuration Management
+
+Rustplorer provides three ways to manage your configuration:
+
+1. **Manual editing** — edit `Config.toml` directly with any text editor. Comments and formatting are preserved across reloads.
+
+2. **CLI flags** — `--add-chain`, `--remove-chain`, `--add-asset`, `--remove-asset`, `--add-address`, `--remove-address` all modify the config file using `toml_edit`, which preserves comments and formatting.
+
+3. **HTTP API** — `POST/DELETE /chains`, `POST/DELETE /assets`, `POST/DELETE /addresses` for runtime management. Changes are written to `Config.toml` via `toml_edit` and hot-reloaded on the next watch cycle.
+
+All three methods are compatible — you can mix manual edits, CLI changes, and API calls without conflicts.
+
+---
+
+## Logging
+
+Rustplorer uses structured logging via the `tracing` crate. Control log verbosity with the `RUST_LOG` environment variable:
 
 ```bash
-# Start local chains
-anvil --host 127.0.0.1 --port 8545 --silent &
-solana-test-validator --reset --quiet --rpc-port 8899 &
-bitcoind -regtest -txindex -rpcuser=user -rpcpassword=password -rpcport=18443 -fallbackfee=0.0001 &
+# Default (info and above)
+RUST_LOG=info rustplorer --watch --api-port 3000 -a addresses.txt
 
-# Run E2E tests
-cargo test --test e2e_test -- --ignored --nocapture
+# Debug-level for the application only
+RUST_LOG=rustplorer=debug rustplorer --watch --api-port 3000 -a addresses.txt
+
+# Trace everything (very verbose)
+RUST_LOG=trace rustplorer --watch --api-port 3000 -a addresses.txt
+
+# Warn for the app, debug for the RPC module
+RUST_LOG=rustplorer=warn,rustplorer::rpc=debug rustplorer --watch --api-port 3000 -a addresses.txt
 ```
 
-The E2E tests perform real transfers on local chains:
-
-| Test | Chain | Token | Verification |
-|---|---|---|---|
-| `e2e_evm_native_eth_deposit` | Anvil (31337) | Native ETH | 1 ETH transfer detected |
-| `e2e_evm_erc20_deposit` | Anvil (31337) | ERC-20 MockToken | 50 MTK transfer detected |
-| `e2e_evm_auto_end_block` | Anvil (31337) | Native ETH | Auto end_block resolution |
-| `e2e_solana_native_deposit` | Solana (testnet) | Native SOL | 2.5 SOL transfer detected |
-| `e2e_btc_native_deposit` | Bitcoin (regtest) | Native BTC | 1.5 BTC transfer detected |
-
-## Configuration Reference
-
-### Chain (`[[chains]]`)
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `caip2` | string | yes | CAIP-2 chain ID (e.g. `eip155:1`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `bip122:000000000019d6689c085ae165831e93`) |
-| `rpc` | string[] | yes | One or more public RPC URLs |
-| `start_block` | uint64 | no | First block/slot (defaults to `end_block - lookback`) |
-| `end_block` | uint64 | no | Last block/slot (defaults to node tip) |
-| `rpc_delay_ms` | uint64 | no | Delay between RPC chunks in ms (default: 100 EVM, 200 Solana, 100 BTC) |
-| `max_concurrent` | uint | no | Max concurrent RPC requests (default: 5). Set lower for free/public RPCs. |
-
-### Asset (`[assets.NAME]`)
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `network` | string | yes | Must match a chain's `caip2` |
-| `contract` | string | yes | Token contract address, or `"native"` for the gas token |
-| `decimals` | uint32 | yes | Token decimal places (ETH=18, SOL=9, BTC=8, USDC=6) |
-
-## Performance Notes
-
-Public RPC nodes typically allow 5-10 requests/second.
-
-| Chain | Blocks | RPC Calls | Est. Time |
-|---|---|---|---|
-| Ethereum (ERC-20) | 500 | ~3 (chunked 200) | ~5 sec |
-| Ethereum (Native) | 500 | 500 (1 per block) | ~2 min |
-| Solana | 100 slots | 100 (1 per slot) | ~30 sec |
-| Bitcoin | 6 blocks | 12 (2 per block) | ~1 sec |
-
-For production workloads at scale, consider dedicated/archive RPC nodes, self-hosted Reth/Erigon nodes, or indexing services.
+---
 
 ## License
 
-MIT OR Apache-2.0
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

@@ -1,71 +1,87 @@
-[[chains]]
+# ==========================================
+# ETHEREUM
+# ==========================================
+[chains.ethereum]
 caip2 = "eip155:1"
+start_block = 19000000
+end_block = 19000500
 rpc = [
     "https://ethereum.publicnode.com",
     "https://eth.drpc.org",
     "https://1rpc.io/eth",
 ]
-start_block = 19000000
-end_block = 19000500
 
-[[chains]]
+  [chains.ethereum.assets.ETH_NATIVE]
+  contract = "native"
+  decimals = 18
+
+  [chains.ethereum.assets.USDC]
+  contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+  decimals = 6
+
+
+# ==========================================
+# BASE
+# ==========================================
+[chains.base]
 caip2 = "eip155:8453"
+start_block = 12000000
+end_block = 12000500
 rpc = [
     "https://base.publicnode.com",
     "https://base.drpc.org",
     "https://mainnet.base.org",
 ]
-start_block = 12000000
-end_block = 12000500
 
+  [chains.base.assets.USDC]
+  contract = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  decimals = 6
+
+
+# ==========================================
+# POLYGON (Optional/Commented out)
+# ==========================================
 # Polygon public RPCs often require API keys. Commented out by default.
-# [[chains]]
+# [chains.polygon]
 # caip2 = "eip155:137"
 # rpc = [
 #     "https://polygon-rpc.com",
 #     "https://rpc.ankr.com/polygon",
 # ]
 
-[[chains]]
+
+# ==========================================
+# SOLANA
+# ==========================================
+[chains.solana]
 caip2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 rpc = [
     "https://api.mainnet-beta.solana.com",
 ]
-max_concurrent = 1
-rpc_delay_ms = 500
 
-[assets.ETH_NATIVE]
-network = "eip155:1"
-contract = "native"
-decimals = 18
+  # Grouped rate-limiting / performance options
+  [chains.solana.rpc_options]
+  max_concurrent = 1
+  delay_ms = 500
 
-[assets.USDC_ETH]
-network = "eip155:1"
-contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
-decimals = 6
+  [chains.solana.assets.SOL_NATIVE]
+  contract = "native"
+  decimals = 9
 
-[assets.USDC_BASE]
-network = "eip155:8453"
-contract = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-decimals = 6
+  [chains.solana.assets.USDC]
+  contract = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  decimals = 6
 
-[assets.SOL_NATIVE]
-network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-contract = "native"
-decimals = 9
 
-[assets.USDC_SOL]
-network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-contract = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-decimals = 6
-
-[[chains]]
+# ==========================================
+# BITCOIN
+# ==========================================
+[chains.bitcoin]
 caip2 = "bip122:000000000019d6689c085ae165831e93"
 rpc = [
     "https://bitcoin-rpc.publicnode.com",
 ]
 
-[assets.BTC_NATIVE]
-network = "bip122:000000000019d6689c085ae165831e93"
-contract = "native"
-decimals = 8
+  [chains.bitcoin.assets.BTC_NATIVE]
+  contract = "native"
+  decimals = 8
