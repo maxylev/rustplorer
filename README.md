@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/maxylev/rustplorer/refs/heads/main/banner.png" alt="High-performance multi-chain deposit detector daemon" />
+
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95.0-orange?logo=rust" alt="Rust 1.95.0" />
   <img src="https://img.shields.io/badge/edition-2024-blue" alt="Edition 2024" />
@@ -39,7 +41,7 @@ Rustplorer continuously watches blockchain blocks for incoming deposits to your 
 cargo install rustplorer
 
 # Create a config file (see Configuration below)
-cp Config.toml.example Config.toml
+cp Config.example.toml Config.toml
 
 # Create an addresses file
 echo "0x70997970c51812dc3a010c7d01b50e0d17dc79c8" > addresses.txt
@@ -1012,7 +1014,7 @@ See [`e2e.md`](e2e.md) for comprehensive end-to-end test scenarios covering all 
 ```
 rustplorer/
 ├── Cargo.toml              # Package manifest with latest deps
-├── Config.toml.example     # Example configuration (nested format)
+├── Config.example.toml     # Example configuration (nested format)
 ├── Dockerfile              # Multi-stage build (rust:1.95.0-slim)
 ├── README.md               # This file
 ├── e2e.md                  # Comprehensive E2E testing document

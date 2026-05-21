@@ -12,4 +12,7 @@ fi
 echo "[pre-commit] Running cargo test..."
 cargo test 2>&1
 
+echo "[pre-commit] Running cargo clippy..."
+cargo clippy --all-targets -- -D warnings 2>&1
+
 echo "[pre-commit] OK"

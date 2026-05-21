@@ -305,6 +305,7 @@ async fn run_watch_mode(args: CliArgs) -> Result<()> {
     let recent_deposits = Arc::new(RwLock::new(VecDeque::with_capacity(100)));
 
     if let Some(port) = args.api_port {
+        let host = args.host.clone().unwrap_or_else(|| "127.0.0.1".to_string());
         let state = ApiState {
             file_path: args.addresses.clone(),
             config_path: args.config.clone(),
@@ -337,7 +338,6 @@ async fn run_watch_mode(args: CliArgs) -> Result<()> {
                 .with_state(state);
 
             // SECURITY: Bind to localhost by default instead of 0.0.0.0.
-            let host = "127.0.0.1";
             let bind_addr = format!("{}:{}", host, port);
 
             match tokio::net::TcpListener::bind(&bind_addr).await {

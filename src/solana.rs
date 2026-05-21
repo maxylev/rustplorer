@@ -3,6 +3,7 @@ use crate::rpc::execute_rpc;
 use crate::{AssetConfig, DepositResult};
 use futures::StreamExt;
 use hashbrown::HashSet;
+use num_bigint::BigUint;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -239,7 +240,32 @@ async fn scan_spl_static(
         let configured_decimals =
             post_log["uiTokenAmount"]["decimals"].as_u64().unwrap_or(6) as u32;
 
-        let raw_amount = post_log["uiTokenAmount"]["amount"].as_str().unwrap_or("0");
+        let post_amount_str = post_log["uiTokenAmount"]["amount"].as_str().unwrap_or("0");
+        let post_amount = post_amount_str.parse::<BigUint>().unwrap_or_default();
+
+        let pre_amount = if let Some(pre_arr) = pre_token {
+            pre_arr
+                .iter()
+                .find(|pre_log| {
+                    pre_log["owner"].as_str() == Some(owner)
+                        && pre_log["mint"].as_str() == Some(mint)
+                })
+                .and_then(|pre_log| {
+                    pre_log["uiTokenAmount"]["amount"]
+                        .as_str()
+                        .and_then(|s| s.parse::<BigUint>().ok())
+                })
+                .unwrap_or_default()
+        } else {
+            BigUint::default()
+        };
+
+        if post_amount <= pre_amount {
+            continue;
+        }
+
+        let diff = &post_amount - &pre_amount;
+        let diff_str = diff.to_string();
 
         let mut from_addr = "unknown".to_string();
         if let Some(pre_arr) = pre_token {
@@ -261,8 +287,8 @@ async fn scan_spl_static(
                 asset: mint.to_string(),
                 from_address: from_addr,
                 to_address: owner.to_string(),
-                amount_raw: raw_amount.to_string(),
-                amount_clean: format_to_human(raw_amount, configured_decimals),
+                amount_raw: diff_str.clone(),
+                amount_clean: format_to_human(&diff_str, configured_decimals),
                 block_number: ctx.slot,
                 tx_hash: ctx.tx_hash.to_string(),
             })
