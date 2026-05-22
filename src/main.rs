@@ -422,6 +422,15 @@ async fn run_watch_mode(args: CliArgs) -> Result<()> {
                         axum::response::Html(include_str!("../index.html"))
                     }),
                 )
+                .route(
+                    "/favicon.svg",
+                    axum::routing::get(|| async {
+                        (
+                            [("content-type", "image/svg+xml")],
+                            include_str!("../favicon.svg"),
+                        )
+                    }),
+                )
                 .route("/v1/addresses", axum::routing::get(api_list_addresses))
                 .route("/v1/addresses", axum::routing::post(api_add_address))
                 .route(
